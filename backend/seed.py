@@ -3,6 +3,12 @@ Seed Central Command's own database with a default admin user.
 
 Run:  cd central-command/backend && uv run python seed.py
 """
+from pathlib import Path
+
+from alembic import command as alembic_command
+from alembic.config import Config as AlembicConfig
+from sqlalchemy import inspect
+
 from app.core.database import Base, engine, SessionLocal
 from app.models.admin import AdminUser
 from app.models.clients import Client  # noqa: F401 — register models
@@ -15,8 +21,26 @@ from app.models.login_otp import LoginOTP  # noqa: F401
 from app.services.auth import hash_password
 
 
+def _stamp_alembic_head_if_fresh() -> None:
+    """After create_all on a fresh DB, mark the schema as being at Alembic head.
+
+    create_all builds every table from the models, including those that
+    later migrations would create. Without a stamp, a subsequent
+    `alembic upgrade head` would try to re-create them and fail. On a DB
+    that already has an alembic_version row we leave it alone so real
+    migrations still apply.
+    """
+    if inspect(engine).has_table("alembic_version"):
+        return
+    cfg = AlembicConfig(str(Path(__file__).parent / "alembic.ini"))
+    cfg.set_main_option("script_location", str(Path(__file__).parent / "alembic"))
+    alembic_command.stamp(cfg, "head")
+    print("Stamped alembic_version at head")
+
+
 def seed():
     Base.metadata.create_all(bind=engine)
+    _stamp_alembic_head_if_fresh()
     db = SessionLocal()
 
     # Default admin (super_admin role)

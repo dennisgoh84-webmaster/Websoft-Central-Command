@@ -47,7 +47,7 @@ Central Command has its **own** PostgreSQL database for:
 
 It connects to each client's PostgreSQL **on demand** to read/write
 the tables defined in the
-[schema contract](../docs/central-command-schema-contract.md):
+[schema contract](docs/central-command-schema-contract.md):
 `announcements`, `ad_banner_settings`, `company_modules`, `modules`,
 `companies`.
 
@@ -56,7 +56,6 @@ the tables defined in the
 ### 1. Start the Central Command database
 
 ```bash
-cd central-command
 docker compose up cc-db -d
 ```
 
@@ -70,7 +69,7 @@ psql -U postgres -c "GRANT ALL ON DATABASE central_command TO cc_app;"
 ### 2. Backend
 
 ```bash
-cd central-command/backend
+cd backend
 uv sync                          # install dependencies
 uv run python seed.py            # create tables + admin user
 uv run uvicorn app.main:app --port 8001 --reload
@@ -81,7 +80,7 @@ Default admin login: `admin` / `Admin123`
 ### 3. Frontend
 
 ```bash
-cd central-command/frontend
+cd frontend
 npm install
 npm run dev                      # starts on http://localhost:5174
 ```
@@ -89,9 +88,13 @@ npm run dev                      # starts on http://localhost:5174
 ### 4. Docker (full stack)
 
 ```bash
-cd central-command
-docker compose up --build
+cp .env.example .env     # fill in CC_POSTGRES_PASSWORD and CC_JWT_SECRET_KEY
+docker compose up -d --build
 ```
+
+For a server deployment (test or production) follow **[DEPLOY.md](DEPLOY.md)**.
+A screen-by-screen tour with the workflow for each module is in
+[docs/ui-walkthrough.md](docs/ui-walkthrough.md).
 
 ## Client-Side Schema Contract
 
@@ -103,7 +106,7 @@ Central Command writes to these tables in each client ERP database:
 - `modules` — read-only reference of available modules
 - `companies` — read-only, used for identification
 
-See [central-command-schema-contract.md](../docs/central-command-schema-contract.md)
+See [central-command-schema-contract.md](docs/central-command-schema-contract.md)
 for full column definitions.
 
 ### Alembic Version Check

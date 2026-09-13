@@ -4,6 +4,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from app.core.config import settings
 from app.core.database import Base
 # Import all models so metadata.tables is populated
 from app.models.admin import AdminUser  # noqa: F401
@@ -18,6 +19,11 @@ from app.models.login_otp import LoginOTP  # noqa: F401
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# The URL in alembic.ini is a local-dev placeholder. Always use the same
+# database_url the application uses (env var / .env), so `alembic` works
+# unchanged inside the Docker container and on a server.
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 target_metadata = Base.metadata
 
