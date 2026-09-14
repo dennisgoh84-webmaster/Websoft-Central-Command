@@ -33,6 +33,9 @@ docker compose version
 
 ## 2. Get the code
 
+Either unpack the release archive (`central-command-<date>.tar.gz`)
+into `/opt/central-command`, or clone:
+
 ```bash
 sudo mkdir -p /opt/central-command && sudo chown "$USER" /opt/central-command
 git clone https://github.com/dennisgoh84-webmaster/websoft-central-command.git /opt/central-command
@@ -59,6 +62,15 @@ Fill in `.env`:
 `.env` is gitignored. Compose refuses to start if either secret is empty.
 
 ## 4. Build and start
+
+Fastest path, does §3 and §5 for you (installs Docker if missing,
+generates `.env`, builds, starts, waits for health, runs the smoke test):
+
+```bash
+./scripts/server-setup.sh
+```
+
+Or by hand:
 
 ```bash
 docker compose up -d --build
