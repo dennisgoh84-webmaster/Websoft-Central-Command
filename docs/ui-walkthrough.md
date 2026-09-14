@@ -9,6 +9,12 @@ clients point at example hosts, so Test Connection and the Client
 Modules tab show connection errors; against a real ERP database they
 list companies and modules.
 
+*Re-captured against the Laravel/PHP backend* (see CHANGELOG.md
+"Backend rewritten from Python/FastAPI to PHP/Laravel") — every screen
+below was re-verified end to end through the unmodified React
+frontend talking to the new backend; the JSON contract, JWT/OTP flow,
+and super-admin protection all round-trip identically.
+
 | Sidebar module | What it manages | Writes to client DB | Push log type |
 |---|---|---|---|
 | Dashboard | Counters and the last 20 push events | nothing | — |
