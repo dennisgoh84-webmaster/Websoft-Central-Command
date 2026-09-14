@@ -3,6 +3,7 @@ import { api } from '../lib/api'
 import type { AdminUser, ClientSummary, SupportLogin } from '../lib/api'
 import { formatDateTime } from '../lib/format'
 import { alert, badge, button, card, color, dismissButton, font, h1, input, label, pageHeader, tabPill, table, td, th, type Tone } from '../lib/theme'
+import StaffDetailModal from '../components/StaffDetailModal'
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: 'Super Admin',
@@ -28,6 +29,7 @@ export default function StaffPage() {
   const [pushForm, setPushForm] = useState({ client_id: '', admin_user_id: '', login_email: '', login_password: '', reason: '' })
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [viewingStaff, setViewingStaff] = useState<AdminUser | null>(null)
 
   const load = async () => {
     const [s, c, sl] = await Promise.all([
@@ -41,6 +43,12 @@ export default function StaffPage() {
   }
 
   useEffect(() => { load() }, [])
+
+  const refreshStaff = async () => {
+    const s = await api.listStaff()
+    setStaff(s)
+    setViewingStaff((current) => (current ? s.find((x) => x.id === current.id) ?? current : current))
+  }
 
   const handleCreate = async () => {
     if (!form.username || !form.full_name || !form.password) return
@@ -221,13 +229,18 @@ export default function StaffPage() {
                     }
                   </td>
                   <td style={td()}>
-                    {s.role === 'super_admin'
-                      ? <span title="Super admin accounts cannot be disabled" style={{ color: color.textFaint, fontSize: 11.5 }}>🔒 Protected</span>
-                      : (
-                        <button onClick={() => handleToggleActive(s)} className="btn" style={button(s.is_active ? 'danger' : 'success', 'sm')}>
-                          {s.is_active ? 'Disable' : 'Enable'}
-                        </button>
-                      )}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <button onClick={() => setViewingStaff(s)} className="btn" style={{ ...button('secondary', 'sm'), background: color.infoSoft, color: color.info }}>
+                        View
+                      </button>
+                      {s.role === 'super_admin'
+                        ? <span title="Super admin accounts cannot be disabled" style={{ color: color.textFaint, fontSize: 11.5 }}>🔒 Protected</span>
+                        : (
+                          <button onClick={() => handleToggleActive(s)} className="btn" style={button(s.is_active ? 'danger' : 'success', 'sm')}>
+                            {s.is_active ? 'Disable' : 'Enable'}
+                          </button>
+                        )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -275,6 +288,14 @@ export default function StaffPage() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {viewingStaff && (
+        <StaffDetailModal
+          staff={viewingStaff}
+          onClose={() => setViewingStaff(null)}
+          onUpdated={refreshStaff}
+        />
       )}
     </div>
   )

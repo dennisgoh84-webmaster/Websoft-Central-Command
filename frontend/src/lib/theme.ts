@@ -267,6 +267,32 @@ export function dismissButton(): CSSProperties {
   return { border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', opacity: 0.6, fontSize: 13, flexShrink: 0 }
 }
 
+// ── Modals ──────────────────────────────────────────────────────────
+
+export function modalOverlay(): CSSProperties {
+  return {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(15,17,21,.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 100,
+    padding: 20,
+  }
+}
+
+export function modalPanel(width = 440): CSSProperties {
+  return {
+    ...card({ padding: 0 }),
+    width,
+    maxWidth: '100%',
+    maxHeight: '86vh',
+    overflowY: 'auto',
+    boxShadow: shadow.popover,
+  }
+}
+
 // ── Client-target chip picker (Advertisements / Video Banner forms) ──
 
 export function targetChip(active: boolean): CSSProperties {
