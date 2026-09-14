@@ -37,8 +37,10 @@ if [ ! -f .env ]; then
   say "Creating .env with generated secrets"
   PG_PW=$(openssl rand -hex 24)
   JWT=$(openssl rand -hex 32)
+  APP_KEY="base64:$(openssl rand -base64 32)"
   sed -e "s|^CC_POSTGRES_PASSWORD=.*|CC_POSTGRES_PASSWORD=$PG_PW|" \
       -e "s|^CC_JWT_SECRET_KEY=.*|CC_JWT_SECRET_KEY=$JWT|" \
+      -e "s|^CC_APP_KEY=.*|CC_APP_KEY=$APP_KEY|" \
       .env.example > .env
   chmod 600 .env
   echo ".env written (chmod 600). Edit CC_HTTP_PORT there if 8080 is taken."

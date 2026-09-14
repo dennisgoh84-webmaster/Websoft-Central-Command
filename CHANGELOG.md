@@ -6,6 +6,21 @@ merge). Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## Unreleased
 
+### Changed
+- **Backend rewritten from Python/FastAPI to PHP/Laravel.** Same REST
+  API — every route, request/response JSON shape, and the JWT/OTP auth
+  flow are unchanged, so the React frontend required no changes.
+  Laravel migrations (`backend/database/migrations`) reproduce the
+  exact schema the Alembic migrations created (same tables, columns,
+  and Postgres enum types). `php artisan cc:install` replaces
+  `seed.py`: it runs pending migrations and ensures the default admin
+  exists, including detecting a database still tracked by the old
+  Alembic-based backend (`alembic_version` present, no Laravel
+  `migrations` table) and stamping it as migrated instead of replaying
+  `CREATE TABLE` against tables that already exist — the same
+  upgrade-safety the previous entry describes, carried forward.
+  The backend container now runs php-fpm + nginx instead of uvicorn.
+
 ### Fixed
 - Alembic migration history now covers the whole schema. Previously
   only `login_otps` had a real migration; the other twelve tables

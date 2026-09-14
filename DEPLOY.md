@@ -2,9 +2,9 @@
 
 This runbook takes a fresh Linux server to a running Central Command that
 testers can log in to. Everything runs in Docker Compose: a PostgreSQL
-container for Central Command's own data, the FastAPI backend, and an
-nginx container that serves the built React app and proxies `/api/*` to
-the backend. The three containers talk over a private Compose network;
+container for Central Command's own data, the Laravel (PHP) backend, and
+an nginx container that serves the built React app and proxies `/api/*`
+to the backend. The three containers talk over a private Compose network;
 only nginx is published to the host.
 
 ```
@@ -55,6 +55,7 @@ Fill in `.env`:
 |---|---|
 | `CC_POSTGRES_PASSWORD` | `openssl rand -hex 24` |
 | `CC_JWT_SECRET_KEY` | `openssl rand -hex 32` |
+| `CC_APP_KEY` | `` `base64:$(openssl rand -base64 32)` `` — the Laravel application key |
 | `CC_HTTP_PORT` | Host port nginx listens on. Default `8080`; use `80` if nothing else is on the box |
 | `CC_DB_PORT` | Host loopback port for Postgres (for `psql` and backups on the server only). Default `5433` |
 | `CC_ENVIRONMENT` | `testing` |
@@ -81,9 +82,9 @@ All three services should reach `running` and `cc-backend` should show
 `(healthy)`. First start does the following automatically:
 
 1. `cc-db` initialises the `central_command` database.
-2. `cc-backend` waits for the DB health check, runs `seed.py` (creates all
-   tables, stamps the Alembic head, creates the default admin), then starts
-   uvicorn.
+2. `cc-backend` waits for the DB health check, runs `php artisan cc:install`
+   (creates all tables via Laravel migrations, creates the default admin),
+   then starts php-fpm + nginx.
 3. `cc-frontend` waits for the backend health check, then serves the app.
 
 Default admin account: **admin / Admin123**. Change it immediately after
@@ -131,7 +132,7 @@ ERP database. For each test client:
    Alembic head and the company list means the link works.
 
 The backend refuses to write to a client whose `alembic_version` is
-older than `min_client_alembic_head` in `backend/app/core/config.py`
+older than `min_client_alembic_head` in `backend/config/centralcommand.php`
 (currently `b2c3d4e5f6a7`). If a test client is on an older schema,
 migrate it first or lower that value for the test build.
 
@@ -173,11 +174,15 @@ what changed release to release. If the smoke test fails it does not
 auto-rollback; it prints the exact commands (previous commit + backup
 file) to do it yourself.
 
-Schema changes ship as Alembic migrations, and are applied
-automatically: the backend container runs `alembic upgrade head`
-(via `seed.py`) on every start, whether the database is brand new or
-years old, so a plain rebuild is already an upgrade. There is no
-separate migration step to remember. To apply pending migrations
+Schema changes ship as Laravel migrations, and are applied
+automatically: the backend container runs `php artisan migrate`
+(via `php artisan cc:install`) on every start, whether the database is
+brand new or years old, so a plain rebuild is already an upgrade. A
+database still tracked the old way (by the original Python/Alembic
+backend's `alembic_version` table) is detected and stamped as migrated
+instead of re-running `CREATE TABLE` on data that already exists —
+see `backend/app/Console/Commands/CentralCommandInstall.php`. There is
+no separate migration step to remember. To apply pending migrations
 without a full rebuild:
 
 ```bash
@@ -223,13 +228,13 @@ docker compose exec cc-db psql -U cc_app central_command
 
 | Area | Test server (this runbook) | Before production |
 |---|---|---|
-| OTP delivery | Returned in the API response and shown on screen | Wire a mailer in `backend/app/routers/auth.py` (`_send_otp_email`), stop returning `_dev_otp` |
+| OTP delivery | Returned in the API response and shown on screen | Wire a mailer in `backend/app/Http/Controllers/AuthController.php` (`sendOtpEmail`), stop returning `_dev_otp` |
 | TLS to the browser | Plain HTTP on port 8080 | Put Caddy / nginx / a load balancer in front with a certificate, or terminate TLS in `frontend/nginx.conf` |
-| Admin password | `Admin123` seeded | Change on first login; consider removing the default from `seed.py` |
+| Admin password | `Admin123` seeded | Change on first login; consider removing the default from `CentralCommandInstall` |
 | Config Updates | Raw SQL runs on every active client with no dry run | Add review/approval, per-client preview |
 | Version upgrade | Records intent and updates the tracked head only | Actual Alembic execution on the client is still a manual step |
 | Database port | Bound to `127.0.0.1` only | Keep it that way |
-| CORS | Not needed: nginx makes the API same-origin | Same; `allow_origins` in `backend/app/main.py` only matters for the Vite dev server |
+| CORS | Not needed: nginx makes the API same-origin | Same; `cors_allowed_origins` in `backend/config/centralcommand.php` only matters for the Vite dev server |
 
 ## 10. Troubleshooting
 

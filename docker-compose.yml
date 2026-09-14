@@ -30,9 +30,21 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      database_url: postgresql+psycopg://cc_app:${CC_POSTGRES_PASSWORD:?set a real password in .env}@cc-db:5432/central_command
-      jwt_secret_key: ${CC_JWT_SECRET_KEY:?set a real random secret in .env}
-      environment: ${CC_ENVIRONMENT:-testing}
+      APP_KEY: ${CC_APP_KEY:?set a real app key in .env}
+      APP_ENV: ${CC_ENVIRONMENT:-testing}
+      APP_DEBUG: "false"
+      LOG_CHANNEL: stderr
+      DB_CONNECTION: pgsql
+      DB_HOST: cc-db
+      DB_PORT: 5432
+      DB_DATABASE: central_command
+      DB_USERNAME: cc_app
+      DB_PASSWORD: ${CC_POSTGRES_PASSWORD:?set a real password in .env}
+      SESSION_DRIVER: array
+      CACHE_STORE: file
+      QUEUE_CONNECTION: sync
+      CC_JWT_SECRET_KEY: ${CC_JWT_SECRET_KEY:?set a real random secret in .env}
+      CC_ENVIRONMENT: ${CC_ENVIRONMENT:-testing}
     depends_on:
       cc-db:
         condition: service_healthy

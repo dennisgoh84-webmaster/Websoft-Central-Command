@@ -1,28 +1,30 @@
-FROM python:3.11-slim
+FROM php:8.3-fpm-bookworm
 
 WORKDIR /app
 
-# uv for reproducible installs from uv.lock
-COPY --from=ghcr.io/astral-sh/uv:0.8 /uv /usr/local/bin/uv
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libpq-dev unzip nginx \
+    && docker-php-ext-install pdo_pgsql pgsql \
+    && rm -rf /var/lib/apt/lists/*
 
-ENV UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy \
-    PYTHONUNBUFFERED=1
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 # Install locked dependencies first so this layer is cached across code changes
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-interaction --no-progress --no-scripts --prefer-dist
 
 COPY . .
-ENV PATH="/app/.venv/bin:$PATH"
+RUN composer dump-autoload --optimize --no-dev
+
+COPY docker/nginx-backend.conf /etc/nginx/sites-enabled/default
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh \
+    && mkdir -p storage/framework/{cache,sessions,testing,views} storage/logs bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache
 
 EXPOSE 8001
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=6 \
-  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8001/api/health', timeout=3).status == 200 else 1)"
+  CMD php -r "exit(@file_get_contents('http://127.0.0.1:8001/api/health') !== false ? 0 : 1);"
 
-# On every start: run pending Alembic migrations (creating the schema
-# from scratch on a fresh DB, or upgrading an existing one — this is
-# what makes a plain `docker compose up -d --build` an upgrade, not
-# just a first install), ensure the default admin exists, then serve.
-CMD ["sh", "-c", "python seed.py && uvicorn app.main:app --host 0.0.0.0 --port 8001 --proxy-headers --forwarded-allow-ips='*'"]
+CMD ["/entrypoint.sh"]

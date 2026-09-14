@@ -21,7 +21,7 @@ manages all deployed Websoft Service ERP installations from one place.
 ┌──────────────────────────────────────┐
 │        Central Command               │
 │  ┌────────────┐  ┌────────────────┐  │
-│  │  React UI  │  │  FastAPI API   │  │
+│  │  React UI  │  │  Laravel API   │  │
 │  │  :5174     │  │  :8001         │  │
 │  └────────────┘  └────────────────┘  │
 │                       │              │
@@ -70,9 +70,10 @@ psql -U postgres -c "GRANT ALL ON DATABASE central_command TO cc_app;"
 
 ```bash
 cd backend
-uv sync                          # install dependencies
-uv run python seed.py            # create tables + admin user
-uv run uvicorn app.main:app --port 8001 --reload
+composer install                                  # install dependencies
+cp .env.example .env && php artisan key:generate   # local config + app key
+php artisan cc:install                             # create tables + admin user
+php artisan serve --port 8001
 ```
 
 Default admin login: `admin` / `Admin123`
