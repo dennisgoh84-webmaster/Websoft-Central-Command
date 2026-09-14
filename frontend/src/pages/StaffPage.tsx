@@ -127,7 +127,7 @@ export default function StaffPage() {
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
         <button onClick={() => setTab('staff')} className="btn" style={tabPill(tab === 'staff')}>👥 Central Command Staff</button>
-        <button onClick={() => setTab('support')} className="btn" style={tabPill(tab === 'support')}>🔑 Support Logins</button>
+        <button onClick={() => setTab('support')} className="btn" style={tabPill(tab === 'support')}>🔑 Support Staff Login</button>
       </div>
 
       {/* Create Staff */}
