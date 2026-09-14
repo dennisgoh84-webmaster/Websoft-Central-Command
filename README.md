@@ -93,7 +93,11 @@ docker compose up -d --build
 ```
 
 For a server deployment (test or production) follow **[DEPLOY.md](DEPLOY.md)**.
-A screen-by-screen tour with the workflow for each module is in
+To upgrade an already-deployed instance, use `./scripts/upgrade.sh` —
+see DEPLOY.md §8. It backs up the database before every upgrade and
+schema migrations apply automatically. [CHANGELOG.md](CHANGELOG.md)
+tracks what changed release to release. A screen-by-screen tour with
+the workflow for each module is in
 [docs/ui-walkthrough.md](docs/ui-walkthrough.md).
 
 ## Client-Side Schema Contract

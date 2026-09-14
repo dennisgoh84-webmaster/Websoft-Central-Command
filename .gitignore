@@ -22,3 +22,6 @@ Thumbs.db
 
 # TypeScript incremental build state
 *.tsbuildinfo
+
+# Local DB backups made by scripts/upgrade.sh
+backups/

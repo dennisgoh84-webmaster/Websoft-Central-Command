@@ -21,5 +21,8 @@ EXPOSE 8001
 HEALTHCHECK --interval=10s --timeout=5s --start-period=20s --retries=6 \
   CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8001/api/health', timeout=3).status == 200 else 1)"
 
-# Create tables + seed the admin user on startup, then run the server
+# On every start: run pending Alembic migrations (creating the schema
+# from scratch on a fresh DB, or upgrading an existing one — this is
+# what makes a plain `docker compose up -d --build` an upgrade, not
+# just a first install), ensure the default admin exists, then serve.
 CMD ["sh", "-c", "python seed.py && uvicorn app.main:app --host 0.0.0.0 --port 8001 --proxy-headers --forwarded-allow-ips='*'"]

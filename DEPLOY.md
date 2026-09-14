@@ -163,22 +163,43 @@ docker compose logs -f cc-frontend     # nginx access log
 
 ```bash
 cd /opt/central-command
-git pull                                # or git checkout <tag>
-docker compose up -d --build            # rebuilds changed images, restarts
-./scripts/smoke-test.sh http://localhost:${CC_HTTP_PORT:-8080}
+./scripts/upgrade.sh              # latest commit on the current branch
+./scripts/upgrade.sh v1.2.0       # or a specific tag / branch / commit
 ```
 
-Schema changes ship as Alembic migrations. `seed.py` stamps a fresh
-database at head; on an existing database apply new migrations with:
+This backs up the database, checks out the target, rebuilds, waits for
+health, and runs the smoke test — see [CHANGELOG.md](CHANGELOG.md) for
+what changed release to release. If the smoke test fails it does not
+auto-rollback; it prints the exact commands (previous commit + backup
+file) to do it yourself.
+
+Schema changes ship as Alembic migrations, and are applied
+automatically: the backend container runs `alembic upgrade head`
+(via `seed.py`) on every start, whether the database is brand new or
+years old, so a plain rebuild is already an upgrade. There is no
+separate migration step to remember. To apply pending migrations
+without a full rebuild:
 
 ```bash
-docker compose exec cc-backend alembic upgrade head
+docker compose restart cc-backend
+```
+
+Doing the steps by hand instead of `scripts/upgrade.sh`:
+
+```bash
+cd /opt/central-command
+git pull                                # or git checkout <tag>
+docker compose up -d --build            # rebuilds, restarts, migrates automatically
+./scripts/smoke-test.sh http://localhost:${CC_HTTP_PORT:-8080}
 ```
 
 **Back up / restore Central Command's database**
 
+`scripts/upgrade.sh` does this automatically before every upgrade,
+writing to `backups/` (gitignored). To do it manually:
+
 ```bash
-docker compose exec cc-db pg_dump -U cc_app -Fc central_command > cc-$(date +%F).dump
+docker compose exec -T cc-db pg_dump -U cc_app -Fc central_command > cc-$(date +%F).dump
 docker compose exec -T cc-db pg_restore -U cc_app -d central_command --clean < cc-2026-09-13.dump
 ```
 

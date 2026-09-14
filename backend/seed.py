@@ -1,46 +1,74 @@
 """
-Seed Central Command's own database with a default admin user.
+Bring Central Command's own database to the latest Alembic schema and
+make sure the default admin account exists.
 
-Run:  cd central-command/backend && uv run python seed.py
+Run:  cd backend && uv run python seed.py
+Also runs automatically on every container start (see Dockerfile) — this
+is what makes `docker compose up -d --build` an upgrade path, not just a
+first-install script.
 """
 from pathlib import Path
 
 from alembic import command as alembic_command
 from alembic.config import Config as AlembicConfig
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
-from app.core.database import Base, engine, SessionLocal
+from app.core.database import engine, SessionLocal
 from app.models.admin import AdminUser
-from app.models.clients import Client  # noqa: F401 — register models
-from app.models.advertisements import Advertisement, AdAssignment, VideoSetting, VideoAssignment  # noqa: F401
-from app.models.config_updates import ConfigUpdate, ConfigPushLog  # noqa: F401
-from app.models.push_logs import PushLog  # noqa: F401
-from app.models.versions import ERPVersion, ClientUpgradeLog  # noqa: F401
-from app.models.staff import SupportLogin  # noqa: F401
-from app.models.login_otp import LoginOTP  # noqa: F401
 from app.services.auth import hash_password
 
+# The revision every database created by a seed.py from before this
+# schema had real migration coverage was left stamped at, via
+# Base.metadata.create_all() followed by a blind `alembic stamp head`.
+# A database at exactly this revision already has every table the
+# baseline migration below would create, so replaying its CREATE TABLE
+# statements against it would fail with "relation already exists". See
+# the "Legacy database" branch in migrate() below.
+_LEGACY_HEAD = "8c24275f88c3"
 
-def _stamp_alembic_head_if_fresh() -> None:
-    """After create_all on a fresh DB, mark the schema as being at Alembic head.
 
-    create_all builds every table from the models, including those that
-    later migrations would create. Without a stamp, a subsequent
-    `alembic upgrade head` would try to re-create them and fail. On a DB
-    that already has an alembic_version row we leave it alone so real
-    migrations still apply.
+def _alembic_config() -> AlembicConfig:
+    backend_dir = Path(__file__).parent
+    cfg = AlembicConfig(str(backend_dir / "alembic.ini"))
+    cfg.set_main_option("script_location", str(backend_dir / "alembic"))
+    return cfg
+
+
+def _current_revision() -> str | None:
+    with engine.connect() as conn:
+        row = conn.execute(text("SELECT version_num FROM alembic_version LIMIT 1")).fetchone()
+        return row[0] if row else None
+
+
+def migrate() -> None:
+    """Bring the database schema to the latest Alembic head.
+
+    Idempotent and safe to run on every container start:
+      - a brand-new database gets every migration, in order
+      - a database already at head is a no-op
+      - a database seeded by the old create_all-based seed.py (every
+        table present, but never stamped, or stamped at the old
+        single-migration head) is detected and stamped forward instead
+        of re-running DDL for tables that already exist
+    Anything else just runs `alembic upgrade head` normally.
     """
-    if inspect(engine).has_table("alembic_version"):
-        return
-    cfg = AlembicConfig(str(Path(__file__).parent / "alembic.ini"))
-    cfg.set_main_option("script_location", str(Path(__file__).parent / "alembic"))
-    alembic_command.stamp(cfg, "head")
-    print("Stamped alembic_version at head")
+    cfg = _alembic_config()
+    inspector = inspect(engine)
+    has_version_table = inspector.has_table("alembic_version")
+    has_app_tables = inspector.has_table("admin_users")
+
+    if not has_version_table and has_app_tables:
+        alembic_command.stamp(cfg, "head")
+        print("Legacy database (tables exist, no Alembic version recorded): stamped at head")
+    elif has_version_table and has_app_tables and _current_revision() == _LEGACY_HEAD:
+        alembic_command.stamp(cfg, "head")
+        print(f"Legacy database at {_LEGACY_HEAD}: stamped forward to head")
+
+    alembic_command.upgrade(cfg, "head")
 
 
 def seed():
-    Base.metadata.create_all(bind=engine)
-    _stamp_alembic_head_if_fresh()
+    migrate()
     db = SessionLocal()
 
     # Default admin (super_admin role)
