@@ -13,6 +13,26 @@ browser ──► :8080 nginx (cc-frontend) ──► /api/* ──► cc-backen
                                                           └──► client ERP databases (on demand, TLS)
 ```
 
+## Quick path: one script for install *and* every future upgrade
+
+Most of the time you don't need the step-by-step below — copy
+`scripts/deploy.sh` to the server and run it. On a bare box it installs
+Docker, clones the repo, generates `.env`, and starts the stack. Run the
+exact same script again any time afterwards (a cron job, or by hand) and
+it backs up the database, pulls the latest code, rebuilds, and verifies —
+it detects which case it's in on its own.
+
+```bash
+scp scripts/deploy.sh you@server:~/deploy.sh   # or paste its contents into a file on the server
+ssh you@server
+chmod +x deploy.sh
+./deploy.sh                # first run installs; every run after that upgrades in place
+./deploy.sh v1.3.0         # or upgrade to a specific tag/branch/commit
+```
+
+The sections below explain what it's doing step by step, and cover the
+few things it can't do for you (DNS, firewall, TLS termination).
+
 ## 1. Server prerequisites
 
 | Item | Requirement |

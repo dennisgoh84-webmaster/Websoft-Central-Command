@@ -13,6 +13,11 @@ merge). Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   with no UI. `VideoSetting` now returns each video's client
   assignments (`client_id`, `pushed_at`), matching how Advertisement
   already worked, so the list can show a ✓ per client once pushed.
+- **`scripts/deploy.sh`** — a single script to copy to a server for both
+  first install and every later upgrade. Detects which case it's in
+  (installs Docker + clones + generates `.env` on a bare box; backs up
+  the database + pulls + rebuilds + smoke-tests on an existing install),
+  so there's one thing to run either way. `DEPLOY.md` now leads with it.
 
 ### Changed
 - **Frontend visual refresh.** The app had no `font-family` set

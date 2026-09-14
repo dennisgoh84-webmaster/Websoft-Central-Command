@@ -9,8 +9,9 @@
 #   2. Backs up the Central Command database
 #   3. Fetches and checks out the target ref
 #   4. Rebuilds and restarts the stack (the backend container runs
-#      pending Alembic migrations automatically on start — see
-#      backend/seed.py)
+#      pending Laravel migrations automatically on start — see
+#      backend/app/Console/Commands/CentralCommandInstall.php, invoked
+#      as `php artisan cc:install` from docker/entrypoint.sh)
 #   5. Waits for health, then runs the smoke test
 #
 # If the smoke test fails after the upgrade, the script does NOT
