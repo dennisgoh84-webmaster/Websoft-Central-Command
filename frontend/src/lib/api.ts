@@ -358,4 +358,11 @@ export const api = {
     }),
   revokeSupportLogin: (loginId: string) =>
     request<{ success: boolean }>(`/staff/support-logins/${loginId}/revoke`, { method: 'POST' }),
+  updateSupportLogin: (loginId: string, data: Partial<{ reason: string }>) =>
+    request<SupportLogin>(`/staff/support-logins/${loginId}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  resetSupportLoginPassword: (loginId: string, newPassword: string) =>
+    request<{ success: boolean; client: string; login_email: string }>(`/staff/support-logins/${loginId}/reset-password`, {
+      method: 'POST',
+      body: JSON.stringify({ new_password: newPassword }),
+    }),
 }

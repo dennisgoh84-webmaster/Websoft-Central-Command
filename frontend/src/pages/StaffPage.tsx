@@ -4,6 +4,7 @@ import type { AdminUser, ClientSummary, SupportLogin } from '../lib/api'
 import { formatDateTime } from '../lib/format'
 import { alert, badge, button, card, color, dismissButton, font, h1, input, label, pageHeader, tabPill, table, td, th, type Tone } from '../lib/theme'
 import StaffDetailModal from '../components/StaffDetailModal'
+import SupportLoginDetailModal from '../components/SupportLoginDetailModal'
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: 'Super Admin',
@@ -30,6 +31,7 @@ export default function StaffPage() {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [viewingStaff, setViewingStaff] = useState<AdminUser | null>(null)
+  const [viewingSupportLogin, setViewingSupportLogin] = useState<SupportLogin | null>(null)
 
   const load = async () => {
     const [s, c, sl] = await Promise.all([
@@ -48,6 +50,12 @@ export default function StaffPage() {
     const s = await api.listStaff()
     setStaff(s)
     setViewingStaff((current) => (current ? s.find((x) => x.id === current.id) ?? current : current))
+  }
+
+  const refreshSupportLogins = async () => {
+    const sl = await api.listSupportLogins()
+    setSupportLogins(sl)
+    setViewingSupportLogin((current) => (current ? sl.find((x) => x.id === current.id) ?? current : current))
   }
 
   const handleCreate = async () => {
@@ -118,7 +126,7 @@ export default function StaffPage() {
       )}
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 20 }}>
-        <button onClick={() => setTab('staff')} className="btn" style={tabPill(tab === 'staff')}>👥 CC Staff</button>
+        <button onClick={() => setTab('staff')} className="btn" style={tabPill(tab === 'staff')}>👥 Central Command Staff</button>
         <button onClick={() => setTab('support')} className="btn" style={tabPill(tab === 'support')}>🔑 Support Logins</button>
       </div>
 
@@ -276,9 +284,14 @@ export default function StaffPage() {
                   <td style={td({ color: color.textMuted, fontSize: 12 })}>{formatDateTime(sl.pushed_at)}</td>
                   <td style={td({ fontSize: 12 })}>{sl.reason || '—'}</td>
                   <td style={td()}>
-                    {sl.status === 'active' && (
-                      <button onClick={() => handleRevoke(sl)} className="btn" style={button('danger', 'sm')}>Revoke</button>
-                    )}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <button onClick={() => setViewingSupportLogin(sl)} className="btn" style={{ ...button('secondary', 'sm'), background: color.infoSoft, color: color.info }}>
+                        View
+                      </button>
+                      {sl.status === 'active' && (
+                        <button onClick={() => handleRevoke(sl)} className="btn" style={button('danger', 'sm')}>Revoke</button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -295,6 +308,16 @@ export default function StaffPage() {
           staff={viewingStaff}
           onClose={() => setViewingStaff(null)}
           onUpdated={refreshStaff}
+        />
+      )}
+
+      {viewingSupportLogin && (
+        <SupportLoginDetailModal
+          login={viewingSupportLogin}
+          staffName={staffName(viewingSupportLogin.admin_user_id)}
+          clientName={clientName(viewingSupportLogin.client_id)}
+          onClose={() => setViewingSupportLogin(null)}
+          onUpdated={refreshSupportLogins}
         />
       )}
     </div>

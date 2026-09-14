@@ -306,6 +306,84 @@ class StaffController extends Controller
         }
     }
 
+    /** Update a support login's editable fields (currently just the reason). */
+    public function updateSupportLogin(string $loginId, Request $request)
+    {
+        $supportLogin = SupportLogin::find($loginId);
+        if (! $supportLogin) {
+            throw new ApiException(404, 'Support login not found');
+        }
+
+        if ($request->exists('reason')) {
+            $supportLogin->reason = $request->input('reason');
+        }
+        $supportLogin->save();
+
+        return response()->json($this->supportLoginOut($supportLogin));
+    }
+
+    /**
+     * Reset the password of an already-pushed support login, without
+     * creating a duplicate support_logins audit row (unlike pushing a
+     * new login with the same email, which also re-enables the user).
+     */
+    public function resetSupportLoginPassword(string $loginId, Request $request)
+    {
+        $admin = $this->currentAdmin($request);
+
+        $supportLogin = SupportLogin::find($loginId);
+        if (! $supportLogin) {
+            throw new ApiException(404, 'Support login not found');
+        }
+        if ($supportLogin->status === 'revoked') {
+            throw new ApiException(400, 'Cannot reset the password of a revoked login');
+        }
+
+        $client = Client::find((string) $supportLogin->client_id);
+        if (! $client) {
+            throw new ApiException(404, 'Client not found');
+        }
+
+        $newPassword = (string) $request->input('new_password');
+        if (strlen($newPassword) < 8) {
+            throw new ApiException(400, 'Password must be at least 8 characters');
+        }
+
+        try {
+            $pdo = $this->clientDb->connect($client);
+            $stmt = $pdo->prepare(<<<'SQL'
+                UPDATE users SET
+                    hashed_password = :pwd,
+                    must_change_password = true
+                WHERE id = :uid
+            SQL);
+            $stmt->execute(['uid' => $supportLogin->client_user_id, 'pwd' => $this->auth->hashPassword($newPassword)]);
+
+            PushLog::create([
+                'client_id' => $client->id,
+                'push_type' => 'support_login',
+                'detail' => "Reset password for support login '{$supportLogin->login_email}'",
+                'success' => true,
+                'pushed_by' => $admin->id,
+            ]);
+
+            $client->last_connected_at = Carbon::now();
+            $client->save();
+
+            return response()->json(['success' => true, 'client' => $client->code, 'login_email' => $supportLogin->login_email]);
+        } catch (Throwable $e) {
+            PushLog::create([
+                'client_id' => $client->id,
+                'push_type' => 'support_login',
+                'detail' => "Password reset failed for support login '{$supportLogin->login_email}'",
+                'success' => false,
+                'error_message' => $e->getMessage(),
+                'pushed_by' => $admin->id,
+            ]);
+            throw new ApiException(500, "Failed to reset password: {$e->getMessage()}");
+        }
+    }
+
     private function currentAdmin(Request $request): AdminUser
     {
         return $request->attributes->get('admin');

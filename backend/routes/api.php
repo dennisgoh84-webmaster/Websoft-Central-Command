@@ -94,6 +94,8 @@ Route::middleware('cc.auth')->group(function () {
         Route::get('/support-logins', [StaffController::class, 'listSupportLogins']);
         Route::post('/support-logins/push', [StaffController::class, 'pushSupportLogin']);
         Route::post('/support-logins/{loginId}/revoke', [StaffController::class, 'revokeSupportLogin']);
+        Route::patch('/support-logins/{loginId}', [StaffController::class, 'updateSupportLogin']);
+        Route::post('/support-logins/{loginId}/reset-password', [StaffController::class, 'resetSupportLoginPassword']);
         Route::patch('/{userId}', [StaffController::class, 'update']);
         Route::delete('/{userId}', [StaffController::class, 'destroy']);
     });
