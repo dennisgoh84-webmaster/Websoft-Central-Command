@@ -159,7 +159,7 @@ class AdvertisementController extends Controller
 
     public function listVideos()
     {
-        $videos = VideoSetting::orderByDesc('created_at')->get();
+        $videos = VideoSetting::with('assignments')->orderByDesc('created_at')->get();
 
         return response()->json($videos->map($this->videoOut(...))->all());
     }
@@ -176,6 +176,7 @@ class AdvertisementController extends Controller
         foreach ((array) $request->input('client_ids', []) as $clientId) {
             VideoAssignment::create(['video_setting_id' => $video->id, 'client_id' => $clientId]);
         }
+        $video->load('assignments');
 
         return response()->json($this->videoOut($video), 201);
     }
@@ -233,6 +234,10 @@ class AdvertisementController extends Controller
             'label' => $v->label,
             'is_active' => $v->is_active,
             'created_at' => $v->created_at?->toISOString(),
+            'assignments' => $v->relationLoaded('assignments') ? $v->assignments->map(fn (VideoAssignment $a) => [
+                'client_id' => (string) $a->client_id,
+                'pushed_at' => $a->pushed_at?->toISOString(),
+            ])->all() : [],
         ];
     }
 }

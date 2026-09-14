@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import { api } from '../lib/api'
+import { alert, button, color, dismissButton, font, input, radius } from '../lib/theme'
 
 type View = 'login' | 'otp' | 'forgot_password' | 'reset_password' | 'forgot_username'
 
@@ -32,34 +33,20 @@ export default function LoginPage() {
   const [fuEmail, setFuEmail] = useState('')
   const [fuDevUsername, setFuDevUsername] = useState<string | null>(null)
 
-  const inputStyle = {
-    width: '100%',
-    padding: '8px 10px',
-    border: '1px solid #ccc',
-    borderRadius: 6,
-    fontSize: 14,
-    boxSizing: 'border-box' as const,
-  }
-  const btnStyle = {
-    width: '100%',
-    padding: '10px 0',
-    background: '#800020',
-    color: '#fff',
-    border: 'none',
-    borderRadius: 6,
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: 'pointer',
-  }
-  const linkStyle = {
+  const fieldLabel: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 5, color: color.text }
+  const btnStyle = { ...button('primary'), width: '100%', padding: '11px 0', fontSize: 14 }
+  const linkStyle: React.CSSProperties = {
     background: 'none',
     border: 'none',
-    color: '#800020',
+    color: color.brand,
     cursor: 'pointer',
     fontSize: 12,
     padding: 0,
+    fontFamily: font.sans,
     textDecoration: 'underline',
+    textUnderlineOffset: 2,
   }
+  const otpInputStyle = { ...input(), textAlign: 'center' as const, fontSize: 22, letterSpacing: 8, fontWeight: 600 }
 
   // ── Login submit ──────────────────────────────────────────────────
   async function onLoginSubmit(e: FormEvent) {
@@ -169,33 +156,39 @@ export default function LoginPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: '#1a1a2e',
+        background: `radial-gradient(circle at 30% 20%, #241a2a 0%, ${color.sidebarBg} 55%)`,
+        fontFamily: font.sans,
       }}
     >
       <div
         style={{
-          background: '#fff',
-          padding: 40,
-          borderRadius: 12,
+          background: color.surface,
+          padding: '38px 40px',
+          borderRadius: radius.lg,
           width: 380,
-          boxShadow: '0 4px 24px rgba(0,0,0,0.3)',
+          boxShadow: '0 24px 60px rgba(0,0,0,.35)',
         }}
       >
-        <h1 style={{ fontSize: 20, margin: '0 0 4px', color: '#800020' }}>
-          🖥️ Central Command
-        </h1>
-        <p style={{ color: '#666', fontSize: 13, margin: '0 0 24px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+          <div style={{ width: 32, height: 32, borderRadius: radius.sm, background: color.brand, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>🖥️</div>
+          <h1 style={{ fontSize: 19, margin: 0, color: color.ink, fontWeight: 700, letterSpacing: '-0.01em' }}>
+            Central Command
+          </h1>
+        </div>
+        <p style={{ color: color.textMuted, fontSize: 13, margin: '2px 0 26px' }}>
           Web Master Consultancy — Admin Portal
         </p>
 
         {error && (
-          <div style={{ background: '#fdecea', color: '#c0392b', padding: '8px 12px', borderRadius: 6, fontSize: 13, marginBottom: 16 }}>
-            {error}
+          <div style={alert('danger')}>
+            <span>{error}</span>
+            <button onClick={() => setError('')} style={dismissButton()}>✕</button>
           </div>
         )}
         {success && (
-          <div style={{ background: '#eafaf1', color: '#27ae60', padding: '8px 12px', borderRadius: 6, fontSize: 13, marginBottom: 16 }}>
-            {success}
+          <div style={alert('success')}>
+            <span>{success}</span>
+            <button onClick={() => setSuccess('')} style={dismissButton()}>✕</button>
           </div>
         )}
 
@@ -203,15 +196,15 @@ export default function LoginPage() {
         {view === 'login' && (
           <form onSubmit={onLoginSubmit}>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Username</label>
-              <input value={username} onChange={(e) => setUsername(e.target.value)} required style={inputStyle} />
+              <label style={fieldLabel}>Username</label>
+              <input value={username} onChange={(e) => setUsername(e.target.value)} required style={input()} />
             </div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Password</label>
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={inputStyle} />
+            <div style={{ marginBottom: 22 }}>
+              <label style={fieldLabel}>Password</label>
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={input()} />
             </div>
-            <button type="submit" style={btnStyle}>Sign In</button>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 14 }}>
+            <button type="submit" className="btn" style={btnStyle}>Sign In</button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
               <button type="button" onClick={() => { resetAll(); setView('forgot_password') }} style={linkStyle}>
                 Forgot Password?
               </button>
@@ -225,28 +218,28 @@ export default function LoginPage() {
         {/* ── OTP Verification ─────────────────────────────────────── */}
         {view === 'otp' && (
           <form onSubmit={onOtpSubmit}>
-            <div style={{ background: '#f0f4ff', padding: '10px 12px', borderRadius: 6, marginBottom: 16, fontSize: 12, color: '#444' }}>
+            <div style={{ ...alert('info'), display: 'block' }}>
               📧 A 6-digit OTP has been sent to <strong>{emailHint || 'your registered email'}</strong>.
               <br />Enter it below to complete login.
             </div>
             {devOtp && (
-              <div style={{ background: '#fff3cd', padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 12, color: '#856404' }}>
-                🔧 <strong>Dev mode:</strong> OTP is <code style={{ fontSize: 14, fontWeight: 700, letterSpacing: 2 }}>{devOtp}</code>
+              <div style={{ ...alert('warning'), display: 'block' }}>
+                🔧 <strong>Dev mode:</strong> OTP is <code style={{ fontSize: 14, fontWeight: 700, letterSpacing: 2, fontFamily: font.mono }}>{devOtp}</code>
               </div>
             )}
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Enter OTP Code</label>
+            <div style={{ marginBottom: 22 }}>
+              <label style={fieldLabel}>Enter OTP Code</label>
               <input
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 required
                 maxLength={6}
                 placeholder="000000"
-                style={{ ...inputStyle, textAlign: 'center', fontSize: 20, letterSpacing: 8, fontWeight: 600 }}
+                style={otpInputStyle}
               />
             </div>
-            <button type="submit" style={btnStyle}>Verify OTP</button>
-            <div style={{ marginTop: 12, textAlign: 'center' }}>
+            <button type="submit" className="btn" style={btnStyle}>Verify OTP</button>
+            <div style={{ marginTop: 14, textAlign: 'center' }}>
               <button type="button" onClick={goBack} style={linkStyle}>← Back to Login</button>
             </div>
           </form>
@@ -255,15 +248,15 @@ export default function LoginPage() {
         {/* ── Forgot Password ──────────────────────────────────────── */}
         {view === 'forgot_password' && (
           <form onSubmit={onForgotPasswordSubmit}>
-            <p style={{ fontSize: 13, color: '#555', margin: '0 0 16px' }}>
+            <p style={{ fontSize: 13, color: color.textMuted, margin: '0 0 18px' }}>
               Enter your username. If an email is registered, we'll send a reset OTP.
             </p>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Username</label>
-              <input value={fpUsername} onChange={(e) => setFpUsername(e.target.value)} required style={inputStyle} />
+            <div style={{ marginBottom: 22 }}>
+              <label style={fieldLabel}>Username</label>
+              <input value={fpUsername} onChange={(e) => setFpUsername(e.target.value)} required style={input()} />
             </div>
-            <button type="submit" style={btnStyle}>Send Reset OTP</button>
-            <div style={{ marginTop: 12, textAlign: 'center' }}>
+            <button type="submit" className="btn" style={btnStyle}>Send Reset OTP</button>
+            <div style={{ marginTop: 14, textAlign: 'center' }}>
               <button type="button" onClick={goBack} style={linkStyle}>← Back to Login</button>
             </div>
           </form>
@@ -272,36 +265,36 @@ export default function LoginPage() {
         {/* ── Reset Password ───────────────────────────────────────── */}
         {view === 'reset_password' && (
           <form onSubmit={onResetPasswordSubmit}>
-            <div style={{ background: '#f0f4ff', padding: '10px 12px', borderRadius: 6, marginBottom: 16, fontSize: 12, color: '#444' }}>
+            <div style={{ ...alert('info'), display: 'block' }}>
               📧 A reset OTP has been sent to <strong>{fpEmailHint || 'your registered email'}</strong>.
             </div>
             {fpDevOtp && (
-              <div style={{ background: '#fff3cd', padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 12, color: '#856404' }}>
-                🔧 <strong>Dev mode:</strong> Reset OTP is <code style={{ fontSize: 14, fontWeight: 700, letterSpacing: 2 }}>{fpDevOtp}</code>
+              <div style={{ ...alert('warning'), display: 'block' }}>
+                🔧 <strong>Dev mode:</strong> Reset OTP is <code style={{ fontSize: 14, fontWeight: 700, letterSpacing: 2, fontFamily: font.mono }}>{fpDevOtp}</code>
               </div>
             )}
             <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Reset OTP Code</label>
+              <label style={fieldLabel}>Reset OTP Code</label>
               <input
                 value={fpOtp}
                 onChange={(e) => setFpOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
                 required
                 maxLength={6}
                 placeholder="000000"
-                style={{ ...inputStyle, textAlign: 'center', fontSize: 20, letterSpacing: 8, fontWeight: 600 }}
+                style={otpInputStyle}
               />
             </div>
             <div style={{ marginBottom: 14 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>New Password</label>
-              <input type="password" value={fpNewPassword} onChange={(e) => setFpNewPassword(e.target.value)} required minLength={8} style={inputStyle} />
-              <p style={{ margin: '4px 0 0', fontSize: 11, color: '#888' }}>Min 8 characters, must contain letters and numbers</p>
+              <label style={fieldLabel}>New Password</label>
+              <input type="password" value={fpNewPassword} onChange={(e) => setFpNewPassword(e.target.value)} required minLength={8} style={input()} />
+              <p style={{ margin: '5px 0 0', fontSize: 11, color: color.textFaint }}>Min 8 characters, must contain letters and numbers</p>
             </div>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Confirm Password</label>
-              <input type="password" value={fpConfirmPassword} onChange={(e) => setFpConfirmPassword(e.target.value)} required minLength={8} style={inputStyle} />
+            <div style={{ marginBottom: 22 }}>
+              <label style={fieldLabel}>Confirm Password</label>
+              <input type="password" value={fpConfirmPassword} onChange={(e) => setFpConfirmPassword(e.target.value)} required minLength={8} style={input()} />
             </div>
-            <button type="submit" style={btnStyle}>Reset Password</button>
-            <div style={{ marginTop: 12, textAlign: 'center' }}>
+            <button type="submit" className="btn" style={btnStyle}>Reset Password</button>
+            <div style={{ marginTop: 14, textAlign: 'center' }}>
               <button type="button" onClick={goBack} style={linkStyle}>← Back to Login</button>
             </div>
           </form>
@@ -310,20 +303,20 @@ export default function LoginPage() {
         {/* ── Forgot Username ──────────────────────────────────────── */}
         {view === 'forgot_username' && (
           <form onSubmit={onForgotUsernameSubmit}>
-            <p style={{ fontSize: 13, color: '#555', margin: '0 0 16px' }}>
+            <p style={{ fontSize: 13, color: color.textMuted, margin: '0 0 18px' }}>
               Enter your registered email address. If found, your username will be sent to it.
             </p>
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Email Address</label>
-              <input type="email" value={fuEmail} onChange={(e) => setFuEmail(e.target.value)} required style={inputStyle} />
+            <div style={{ marginBottom: 22 }}>
+              <label style={fieldLabel}>Email Address</label>
+              <input type="email" value={fuEmail} onChange={(e) => setFuEmail(e.target.value)} required style={input()} />
             </div>
             {fuDevUsername && (
-              <div style={{ background: '#fff3cd', padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 12, color: '#856404' }}>
-                🔧 <strong>Dev mode:</strong> Your username is <code style={{ fontSize: 14, fontWeight: 700 }}>{fuDevUsername}</code>
+              <div style={{ ...alert('warning'), display: 'block' }}>
+                🔧 <strong>Dev mode:</strong> Your username is <code style={{ fontSize: 14, fontWeight: 700, fontFamily: font.mono }}>{fuDevUsername}</code>
               </div>
             )}
-            <button type="submit" style={btnStyle}>Recover Username</button>
-            <div style={{ marginTop: 12, textAlign: 'center' }}>
+            <button type="submit" className="btn" style={btnStyle}>Recover Username</button>
+            <div style={{ marginTop: 14, textAlign: 'center' }}>
               <button type="button" onClick={goBack} style={linkStyle}>← Back to Login</button>
             </div>
           </form>

@@ -1,79 +1,134 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
+import { color, font, radius } from '../lib/theme'
 import type { ReactNode } from 'react'
 
 const NAV = [
-  { to: '/', label: '📊 Dashboard' },
-  { to: '/clients', label: '🏢 Clients' },
-  { to: '/advertisements', label: '📢 Advertisements' },
-  { to: '/config-updates', label: '⚙️ Config Updates' },
-  { to: '/versions', label: '🔄 Version Control' },
-  { to: '/staff', label: '👤 Staff' },
+  { to: '/', label: 'Dashboard', icon: '📊' },
+  { to: '/clients', label: 'Clients', icon: '🏢' },
+  { to: '/advertisements', label: 'Advertisements', icon: '📢' },
+  { to: '/config-updates', label: 'Config Updates', icon: '⚙️' },
+  { to: '/versions', label: 'Version Control', icon: '🔄' },
+  { to: '/staff', label: 'Staff', icon: '👤' },
 ]
 
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   const loc = useLocation()
 
+  const initials = (user?.full_name || '?')
+    .split(' ')
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase()
+
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', fontFamily: font.sans }}>
       {/* Sidebar */}
       <nav
         style={{
-          width: 220,
-          background: '#1a1a2e',
-          color: '#e0e0e0',
-          padding: '20px 0',
+          width: 232,
+          background: color.sidebarBg,
+          color: color.sidebarText,
+          padding: '22px 0 16px',
           flexShrink: 0,
           display: 'flex',
           flexDirection: 'column',
         }}
       >
-        <div style={{ padding: '0 16px 20px', borderBottom: '1px solid #333' }}>
-          <h1 style={{ fontSize: 15, margin: 0, color: '#fff', fontWeight: 700 }}>
-            🖥️ Central Command
-          </h1>
-          <p style={{ fontSize: 11, margin: '4px 0 0', color: '#888' }}>
-            Web Master Consultancy
-          </p>
+        <div style={{ padding: '0 20px 20px', borderBottom: `1px solid ${color.sidebarBorder}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: radius.sm,
+              background: color.brand,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 16,
+              flexShrink: 0,
+            }}
+          >
+            🖥️
+          </div>
+          <div>
+            <h1 style={{ fontSize: 14.5, margin: 0, color: '#fff', fontWeight: 700, letterSpacing: '-0.01em' }}>
+              Central Command
+            </h1>
+            <p style={{ fontSize: 11, margin: '2px 0 0', color: color.sidebarText }}>
+              Web Master Consultancy
+            </p>
+          </div>
         </div>
 
-        <div style={{ flex: 1, padding: '12px 0' }}>
+        <div style={{ flex: 1, padding: '14px 12px' }}>
           {NAV.map((n) => {
             const active = n.to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(n.to)
             return (
               <Link
                 key={n.to}
                 to={n.to}
+                className="nav-link"
                 style={{
-                  display: 'block',
-                  padding: '8px 16px',
-                  color: active ? '#fff' : '#aaa',
-                  background: active ? '#800020' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '9px 12px',
+                  marginBottom: 2,
+                  color: active ? color.sidebarTextActive : color.sidebarText,
+                  background: active ? color.brand : 'transparent',
                   textDecoration: 'none',
-                  fontSize: 13,
-                  fontWeight: active ? 600 : 400,
+                  fontSize: 13.5,
+                  fontWeight: active ? 600 : 500,
+                  borderRadius: radius.sm,
+                  transition: 'background-color .12s ease, color .12s ease',
                 }}
               >
+                <span style={{ fontSize: 15, width: 18, textAlign: 'center' }}>{n.icon}</span>
                 {n.label}
               </Link>
             )
           })}
         </div>
 
-        <div style={{ padding: '12px 16px', borderTop: '1px solid #333', fontSize: 12 }}>
-          <p style={{ margin: 0, color: '#aaa' }}>{user?.full_name}</p>
+        <div style={{ padding: '14px 20px', borderTop: `1px solid ${color.sidebarBorder}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+            <div
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: radius.pill,
+                background: 'rgba(255,255,255,0.08)',
+                color: '#fff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 11,
+                fontWeight: 700,
+                flexShrink: 0,
+              }}
+            >
+              {initials}
+            </div>
+            <p style={{ margin: 0, color: '#e4e5ee', fontSize: 12.5, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {user?.full_name}
+            </p>
+          </div>
           <button
             onClick={logout}
+            className="btn"
             style={{
-              marginTop: 8,
+              width: '100%',
               background: 'transparent',
-              border: '1px solid #555',
-              color: '#ccc',
-              padding: '4px 10px',
-              borderRadius: 4,
+              border: `1px solid ${color.sidebarBorder}`,
+              color: color.sidebarText,
+              padding: '6px 10px',
+              borderRadius: radius.sm,
               cursor: 'pointer',
-              fontSize: 11,
+              fontSize: 12,
+              fontFamily: font.sans,
             }}
           >
             Sign out
@@ -82,7 +137,7 @@ export default function Layout({ children }: { children: ReactNode }) {
       </nav>
 
       {/* Main content */}
-      <main style={{ flex: 1, padding: '24px 32px', background: '#f5f5f5', overflow: 'auto' }}>
+      <main style={{ flex: 1, padding: '28px 36px', background: color.page, overflow: 'auto' }}>
         {children}
       </main>
     </div>

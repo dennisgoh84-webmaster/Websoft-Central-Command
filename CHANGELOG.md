@@ -6,7 +6,28 @@ merge). Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## Unreleased
 
+### Added
+- **Video Banner screen** — second tab on the Advertisements page.
+  Create a banner (video URL + label), target clients, and push;
+  previously this only existed as an API (`/api/advertisements/videos`)
+  with no UI. `VideoSetting` now returns each video's client
+  assignments (`client_id`, `pushed_at`), matching how Advertisement
+  already worked, so the list can show a ✓ per client once pushed.
+
 ### Changed
+- **Frontend visual refresh.** The app had no `font-family` set
+  anywhere, so every screen rendered in the browser's default serif
+  (Times New Roman) — now self-hosts Inter (`@fontsource-variable/inter`,
+  no external font CDN calls). Introduced `frontend/src/lib/theme.ts`
+  as a single source of truth for color/spacing/typography instead of
+  ~50 duplicated hex literals across pages; badges moved from solid
+  2013-era "flat UI colors" to soft tinted pills; cards gained a subtle
+  shadow; sidebar nav gained a user avatar and refined active state.
+  Removed `frontend/src/pages/LicensesPage.tsx`, a dead unrouted
+  duplicate of the Client Licenses tab.
+- **Dates now show as DD/MM/YYYY** (`frontend/src/lib/format.ts`)
+  everywhere a timestamp is rendered, replacing `toLocaleString()`
+  (which rendered MM/DD/YYYY on US-locale browsers).
 - **Backend rewritten from Python/FastAPI to PHP/Laravel.** Same REST
   API — every route, request/response JSON shape, and the JWT/OTP auth
   flow are unchanged, so the React frontend required no changes.

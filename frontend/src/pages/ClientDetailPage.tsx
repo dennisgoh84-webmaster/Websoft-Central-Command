@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { api, type Client, type ClientSummary, type ConnectionTestResult, type ClientModule } from '../lib/api'
+import { formatDateTime } from '../lib/format'
+import { alert, badge, button, card, color, dismissButton, font, h2, input, radius, tabUnderline, table, td, th, type Tone } from '../lib/theme'
 
 type Tab = 'details' | 'modules' | 'licenses'
+
+const STATUS_TONE: Record<string, Tone> = { active: 'success', suspended: 'danger', decommissioned: 'neutral' }
 
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -155,9 +159,10 @@ export default function ClientDetailPage() {
     }
   }
 
-  if (!client) return <p>Loading...</p>
+  if (!client) return <p style={{ color: color.textMuted, fontSize: 13 }}>Loading…</p>
 
-  const statusColor = client.status === 'active' ? '#27ae60' : client.status === 'suspended' ? '#e74c3c' : '#95a5a6'
+  const infoRow: React.CSSProperties = { color: color.textMuted, paddingRight: 18, paddingBottom: 8, fontSize: 12.5, fontWeight: 500 }
+  const infoVal: React.CSSProperties = { paddingBottom: 8, fontSize: 13, color: color.text }
 
   // Group modules by company
   const byCompany: Record<string, { name: string; modules: ClientModule[] }> = {}
@@ -168,89 +173,76 @@ export default function ClientDetailPage() {
     byCompany[m.company_id].modules.push(m)
   }
 
-  const tabStyle = (t: Tab) => ({
-    padding: '8px 20px',
-    border: 'none',
-    borderBottom: tab === t ? '3px solid #800020' : '3px solid transparent',
-    background: 'none',
-    cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: tab === t ? 600 : 400,
-    color: tab === t ? '#800020' : '#666',
-  })
-
   return (
     <div>
-      <Link to="/clients" style={{ color: '#800020', fontSize: 13 }}>← Back to Clients</Link>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 12 }}>
+      <Link to="/clients" style={{ color: color.brand, fontSize: 13, textDecoration: 'none', fontWeight: 500 }}>← Back to Clients</Link>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 14 }}>
         <div>
-          <h1 style={{ margin: '0 0 4px', fontSize: 22 }}>{client.name}</h1>
-          <p style={{ margin: 0, color: '#888', fontSize: 13 }}>
-            Code: <strong>{client.code}</strong>
-            <span style={{ marginLeft: 12, display: 'inline-block', padding: '1px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, color: '#fff', background: statusColor }}>
-              {client.status}
-            </span>
+          <h1 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 700, color: color.ink, letterSpacing: '-0.01em' }}>{client.name}</h1>
+          <p style={{ margin: 0, color: color.textMuted, fontSize: 13, display: 'flex', alignItems: 'center', gap: 10 }}>
+            Code: <strong style={{ color: color.text }}>{client.code}</strong>
+            <span style={badge(STATUS_TONE[client.status] ?? 'neutral')}>{client.status}</span>
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           {client.status === 'active' && (
-            <button onClick={onSuspend} style={{ background: '#e74c3c', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 4, cursor: 'pointer', fontSize: 12 }}>
-              Suspend
-            </button>
+            <button onClick={onSuspend} className="btn" style={button('danger', 'sm')}>Suspend</button>
           )}
           {client.status === 'suspended' && (
-            <button onClick={onActivate} style={{ background: '#27ae60', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 4, cursor: 'pointer', fontSize: 12 }}>
-              Activate
-            </button>
+            <button onClick={onActivate} className="btn" style={button('success', 'sm')}>Activate</button>
           )}
-          <button onClick={onDelete} style={{ background: '#ccc', color: '#333', border: 'none', padding: '6px 14px', borderRadius: 4, cursor: 'pointer', fontSize: 12 }}>
-            Delete
-          </button>
+          <button onClick={onDelete} className="btn" style={button('secondary', 'sm')}>Delete</button>
         </div>
       </div>
 
       {/* Tab bar */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #ddd', marginTop: 20, marginBottom: 20 }}>
-        <button onClick={() => switchTab('details')} style={tabStyle('details')}>📋 Details</button>
-        <button onClick={() => switchTab('modules')} style={tabStyle('modules')}>🧩 Client Modules</button>
-        <button onClick={() => switchTab('licenses')} style={tabStyle('licenses')}>🔑 Client Licenses</button>
+      <div style={{ display: 'flex', borderBottom: `1px solid ${color.border}`, marginTop: 22, marginBottom: 22 }}>
+        <button onClick={() => switchTab('details')} style={tabUnderline(tab === 'details')}>📋 Details</button>
+        <button onClick={() => switchTab('modules')} style={tabUnderline(tab === 'modules')}>🧩 Client Modules</button>
+        <button onClick={() => switchTab('licenses')} style={tabUnderline(tab === 'licenses')}>🔑 Client Licenses</button>
       </div>
 
-      {error && <div style={{ background: '#fdecea', color: '#c0392b', padding: '6px 12px', borderRadius: 4, fontSize: 13, marginBottom: 12 }}>{error} <button onClick={() => setError('')} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>✕</button></div>}
+      {error && (
+        <div style={alert('danger')}>
+          <span>{error}</span>
+          <button onClick={() => setError('')} style={dismissButton()}>✕</button>
+        </div>
+      )}
 
       {/* ── Details Tab ──────────────────────────────────────────── */}
       {tab === 'details' && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
           {/* Connection Details */}
-          <div style={{ background: '#fff', borderRadius: 8, padding: 20, border: '1px solid #e0e0e0' }}>
-            <h2 style={{ fontSize: 15, margin: '0 0 12px', color: '#800020' }}>Connection Details</h2>
+          <div style={card({ padding: 22 })}>
+            <h2 style={{ ...h2(), color: color.brand, marginBottom: 14 }}>Connection Details</h2>
             <table style={{ fontSize: 13 }}>
               <tbody>
-                <tr><td style={{ color: '#888', paddingRight: 16, paddingBottom: 6 }}>Host</td><td style={{ paddingBottom: 6 }}>{client.db_host}</td></tr>
-                <tr><td style={{ color: '#888', paddingRight: 16, paddingBottom: 6 }}>Port</td><td style={{ paddingBottom: 6 }}>{client.db_port}</td></tr>
-                <tr><td style={{ color: '#888', paddingRight: 16, paddingBottom: 6 }}>Database</td><td style={{ paddingBottom: 6 }}>{client.db_name}</td></tr>
-                <tr><td style={{ color: '#888', paddingRight: 16, paddingBottom: 6 }}>Username</td><td style={{ paddingBottom: 6 }}>{client.db_username}</td></tr>
-                <tr><td style={{ color: '#888', paddingRight: 16, paddingBottom: 6 }}>TLS</td><td style={{ paddingBottom: 6 }}>{client.db_use_tls ? 'Yes' : 'No'}</td></tr>
+                <tr><td style={infoRow}>Host</td><td style={infoVal}>{client.db_host}</td></tr>
+                <tr><td style={infoRow}>Port</td><td style={infoVal}>{client.db_port}</td></tr>
+                <tr><td style={infoRow}>Database</td><td style={infoVal}>{client.db_name}</td></tr>
+                <tr><td style={infoRow}>Username</td><td style={infoVal}>{client.db_username}</td></tr>
+                <tr><td style={infoRow}>TLS</td><td style={infoVal}>{client.db_use_tls ? 'Yes' : 'No'}</td></tr>
               </tbody>
             </table>
 
-            <button
-              onClick={onTest}
-              disabled={testing}
-              style={{ marginTop: 12, background: '#3498db', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 4, cursor: 'pointer', fontSize: 12 }}
-            >
-              {testing ? 'Testing...' : 'Test Connection'}
+            <button onClick={onTest} disabled={testing} className="btn" style={{ ...button('secondary', 'sm'), marginTop: 6, background: color.infoSoft, color: color.info }}>
+              {testing ? 'Testing…' : 'Test Connection'}
             </button>
 
             {testResult && (
-              <div style={{ marginTop: 12, padding: 12, borderRadius: 6, background: testResult.success ? '#eafaf1' : '#fdecea', border: `1px solid ${testResult.success ? '#27ae60' : '#e74c3c'}`, fontSize: 12 }}>
-                <strong>{testResult.success ? '✅ Connected' : '❌ Failed'}</strong>
-                <p style={{ margin: '4px 0 0' }}>{testResult.message}</p>
-                {testResult.alembic_head && <p style={{ margin: '2px 0 0' }}>Alembic head: <code>{testResult.alembic_head}</code></p>}
+              <div style={{
+                marginTop: 14, padding: 14, borderRadius: radius.md,
+                background: testResult.success ? color.successSoft : color.dangerSoft,
+                border: `1px solid ${testResult.success ? '#b6e5c7' : '#f3c6c1'}`,
+                fontSize: 12.5, color: color.text,
+              }}>
+                <strong style={{ color: testResult.success ? color.success : color.danger }}>{testResult.success ? '✅ Connected' : '❌ Failed'}</strong>
+                <p style={{ margin: '5px 0 0' }}>{testResult.message}</p>
+                {testResult.alembic_head && <p style={{ margin: '3px 0 0' }}>Alembic head: <code style={{ fontFamily: font.mono }}>{testResult.alembic_head}</code></p>}
                 {testResult.companies && (
-                  <div style={{ marginTop: 6 }}>
+                  <div style={{ marginTop: 8 }}>
                     <strong>Companies ({testResult.companies.length}):</strong>
-                    <ul style={{ margin: '4px 0 0', paddingLeft: 16 }}>
+                    <ul style={{ margin: '5px 0 0', paddingLeft: 18 }}>
                       {testResult.companies.map((c) => (
                         <li key={c.id}>{c.name} {c.registration_number && `(${c.registration_number})`}</li>
                       ))}
@@ -262,18 +254,18 @@ export default function ClientDetailPage() {
           </div>
 
           {/* Info */}
-          <div style={{ background: '#fff', borderRadius: 8, padding: 20, border: '1px solid #e0e0e0' }}>
-            <h2 style={{ fontSize: 15, margin: '0 0 12px', color: '#800020' }}>Information</h2>
+          <div style={card({ padding: 22 })}>
+            <h2 style={{ ...h2(), color: color.brand, marginBottom: 14 }}>Information</h2>
             <table style={{ fontSize: 13 }}>
               <tbody>
-                <tr><td style={{ color: '#888', paddingRight: 16, paddingBottom: 6 }}>Last Connected</td><td style={{ paddingBottom: 6 }}>{client.last_connected_at ? new Date(client.last_connected_at).toLocaleString() : '—'}</td></tr>
-                <tr><td style={{ color: '#888', paddingRight: 16, paddingBottom: 6 }}>Alembic Head</td><td style={{ paddingBottom: 6, fontFamily: 'monospace', fontSize: 11 }}>{client.last_known_alembic_head ?? '—'}</td></tr>
-                <tr><td style={{ color: '#888', paddingRight: 16, paddingBottom: 6 }}>Created</td><td style={{ paddingBottom: 6 }}>{new Date(client.created_at).toLocaleString()}</td></tr>
-                <tr><td style={{ color: '#888', paddingRight: 16, paddingBottom: 6 }}>Updated</td><td style={{ paddingBottom: 6 }}>{new Date(client.updated_at).toLocaleString()}</td></tr>
+                <tr><td style={infoRow}>Last Connected</td><td style={infoVal}>{formatDateTime(client.last_connected_at)}</td></tr>
+                <tr><td style={infoRow}>Alembic Head</td><td style={{ ...infoVal, fontFamily: font.mono, fontSize: 11 }}>{client.last_known_alembic_head ?? '—'}</td></tr>
+                <tr><td style={infoRow}>Created</td><td style={infoVal}>{formatDateTime(client.created_at)}</td></tr>
+                <tr><td style={infoRow}>Updated</td><td style={infoVal}>{formatDateTime(client.updated_at)}</td></tr>
               </tbody>
             </table>
             {client.notes && (
-              <div style={{ marginTop: 12, padding: 10, background: '#f9f9f9', borderRadius: 4, fontSize: 12, color: '#555' }}>
+              <div style={{ marginTop: 14, padding: 12, background: color.page, borderRadius: radius.sm, fontSize: 12.5, color: color.text, border: `1px solid ${color.border}` }}>
                 <strong>Notes:</strong> {client.notes}
               </div>
             )}
@@ -284,73 +276,57 @@ export default function ClientDetailPage() {
       {/* ── Client Modules Tab ───────────────────────────────────── */}
       {tab === 'modules' && (
         <div>
-          {moduleMsg && <div style={{ background: '#eafaf1', color: '#27ae60', padding: '6px 12px', borderRadius: 4, fontSize: 13, marginBottom: 12 }}>{moduleMsg} <button onClick={() => setModuleMsg('')} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>✕</button></div>}
+          {moduleMsg && (
+            <div style={alert('success')}>
+              <span>{moduleMsg}</span>
+              <button onClick={() => setModuleMsg('')} style={dismissButton()}>✕</button>
+            </div>
+          )}
 
-          {modulesLoading && <p style={{ color: '#888' }}>Loading modules from client database...</p>}
+          {modulesLoading && <p style={{ color: color.textMuted, fontSize: 13 }}>Loading modules from client database…</p>}
 
           {!modulesLoading && modulesLoaded && modules.length === 0 && (
-            <p style={{ color: '#888', fontSize: 13 }}>No modules found in client database. Test the connection first to ensure connectivity.</p>
+            <p style={{ color: color.textMuted, fontSize: 13 }}>No modules found in client database. Test the connection first to ensure connectivity.</p>
           )}
 
           {Object.entries(byCompany).map(([companyId, { name, modules: mods }]) => (
-            <div key={companyId} style={{ background: '#fff', borderRadius: 8, border: '1px solid #e0e0e0', marginBottom: 20, overflow: 'hidden' }}>
-              <div style={{ background: '#f9f9f9', padding: '10px 16px', borderBottom: '1px solid #e0e0e0' }}>
-                <h2 style={{ margin: 0, fontSize: 14, color: '#333' }}>🏢 {name}</h2>
+            <div key={companyId} style={card({ marginBottom: 20, padding: 0, overflow: 'hidden' })}>
+              <div style={{ background: color.page, padding: '11px 18px', borderBottom: `1px solid ${color.border}` }}>
+                <h2 style={{ margin: 0, fontSize: 13.5, fontWeight: 600, color: color.text }}>🏢 {name}</h2>
               </div>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+              <table style={table()}>
                 <thead>
-                  <tr style={{ borderBottom: '2px solid #eee' }}>
-                    <th style={{ textAlign: 'left', padding: '8px 12px', color: '#888', fontWeight: 600, fontSize: 12 }}>Module</th>
-                    <th style={{ textAlign: 'left', padding: '8px 12px', color: '#888', fontWeight: 600, fontSize: 12 }}>Key</th>
-                    <th style={{ textAlign: 'left', padding: '8px 12px', color: '#888', fontWeight: 600, fontSize: 12 }}>Built</th>
-                    <th style={{ textAlign: 'left', padding: '8px 12px', color: '#888', fontWeight: 600, fontSize: 12 }}>License</th>
-                    <th style={{ textAlign: 'left', padding: '8px 12px', color: '#888', fontWeight: 600, fontSize: 12 }}>Status</th>
-                    <th style={{ textAlign: 'left', padding: '8px 12px', color: '#888', fontWeight: 600, fontSize: 12 }}>Action</th>
+                  <tr>
+                    <th style={th()}>Module</th>
+                    <th style={th()}>Key</th>
+                    <th style={th()}>Built</th>
+                    <th style={th()}>License</th>
+                    <th style={th()}>Status</th>
+                    <th style={th()}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {mods.map((m) => (
-                    <tr key={m.module_key} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                      <td style={{ padding: '8px 12px', fontWeight: 500 }}>{m.module_name}</td>
-                      <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 11 }}>{m.module_key}</td>
-                      <td style={{ padding: '8px 12px' }}>
-                        <span style={{ color: m.is_built ? '#27ae60' : '#888' }}>{m.is_built ? '✓' : '—'}</span>
+                    <tr key={m.module_key} className="tr" style={{ borderBottom: `1px solid ${color.border}` }}>
+                      <td style={td({ fontWeight: 500 })}>{m.module_name}</td>
+                      <td style={td({ fontFamily: font.mono, fontSize: 11, color: color.textMuted })}>{m.module_key}</td>
+                      <td style={td()}>
+                        <span style={{ color: m.is_built ? color.success : color.textFaint }}>{m.is_built ? '✓' : '—'}</span>
                       </td>
-                      <td style={{ padding: '8px 12px' }}>
-                        <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: 3, fontSize: 11, background: '#f0f0f0' }}>
-                          {m.license_type}
-                        </span>
+                      <td style={td()}>
+                        <span style={badge('neutral')}>{m.license_type}</span>
                       </td>
-                      <td style={{ padding: '8px 12px' }}>
-                        <span style={{
-                          display: 'inline-block',
-                          padding: '2px 10px',
-                          borderRadius: 12,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          color: '#fff',
-                          background: m.enabled ? '#27ae60' : '#e74c3c',
-                        }}>
-                          {m.enabled ? 'ENABLED' : 'DISABLED'}
-                        </span>
+                      <td style={td()}>
+                        <span style={badge(m.enabled ? 'success' : 'danger')}>{m.enabled ? 'ENABLED' : 'DISABLED'}</span>
                       </td>
-                      <td style={{ padding: '8px 12px' }}>
+                      <td style={td()}>
                         <button
                           onClick={() => toggleModule(m)}
                           disabled={toggling === m.module_key + m.company_id}
-                          style={{
-                            background: m.enabled ? '#e74c3c' : '#27ae60',
-                            color: '#fff',
-                            border: 'none',
-                            padding: '3px 10px',
-                            borderRadius: 3,
-                            cursor: 'pointer',
-                            fontSize: 11,
-                          }}
+                          className="btn"
+                          style={button(m.enabled ? 'danger' : 'success', 'sm')}
                         >
-                          {toggling === m.module_key + m.company_id
-                            ? '...'
-                            : m.enabled ? 'Disable' : 'Enable'}
+                          {toggling === m.module_key + m.company_id ? '…' : m.enabled ? 'Disable' : 'Enable'}
                         </button>
                       </td>
                     </tr>
@@ -361,10 +337,7 @@ export default function ClientDetailPage() {
           ))}
 
           {modulesLoaded && modules.length > 0 && (
-            <button
-              onClick={loadModules}
-              style={{ background: '#3498db', color: '#fff', border: 'none', padding: '6px 14px', borderRadius: 4, cursor: 'pointer', fontSize: 12 }}
-            >
+            <button onClick={loadModules} className="btn" style={{ ...button('secondary', 'sm'), background: color.infoSoft, color: color.info }}>
               🔄 Refresh Modules
             </button>
           )}
@@ -374,74 +347,61 @@ export default function ClientDetailPage() {
       {/* ── Client Licenses Tab ──────────────────────────────────── */}
       {tab === 'licenses' && clientSummary && (
         <div>
-          {licenseMsg && <div style={{ background: '#eafaf1', color: '#27ae60', padding: '6px 12px', borderRadius: 4, fontSize: 13, marginBottom: 12 }}>{licenseMsg} <button onClick={() => setLicenseMsg('')} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>✕</button></div>}
+          {licenseMsg && (
+            <div style={alert('success')}>
+              <span>{licenseMsg}</span>
+              <button onClick={() => setLicenseMsg('')} style={dismissButton()}>✕</button>
+            </div>
+          )}
 
-          <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e0e0e0', padding: '20px 24px' }}>
-            <h2 style={{ fontSize: 15, margin: '0 0 16px', color: '#800020' }}>🔐 Max Concurrent Logins</h2>
+          <div style={card({ padding: '22px 26px' })}>
+            <h2 style={{ ...h2(), color: color.brand, marginBottom: 18 }}>🔐 Max Concurrent Logins</h2>
 
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
-              <div style={{ fontSize: 13 }}>
-                <span style={{ fontWeight: 600, marginRight: 8 }}>Current Limit:</span>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <div style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontWeight: 600 }}>Current Limit:</span>
                 {!editingLimit ? (
-                  <span style={{
-                    display: 'inline-block',
-                    padding: '2px 10px',
-                    borderRadius: 12,
-                    fontSize: 12,
-                    fontWeight: 600,
-                    color: '#fff',
-                    background: clientSummary.max_licenses ? '#3498db' : '#27ae60',
-                  }}>
+                  <span style={badge(clientSummary.max_licenses ? 'info' : 'success')}>
                     {clientSummary.max_licenses ? `${clientSummary.max_licenses} users` : 'Unlimited'}
                   </span>
                 ) : (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
                     <input
                       type="number"
                       min={1}
                       placeholder="Empty = unlimited"
                       value={limitValue}
                       onChange={e => setLimitValue(e.target.value)}
-                      style={{ width: 140, padding: '4px 8px', border: '1px solid #ccc', borderRadius: 4, fontSize: 12 }}
+                      style={{ ...input(), width: 150 }}
                     />
-                    <button
-                      onClick={saveLicenseLimit}
-                      disabled={savingLimit}
-                      style={{ padding: '4px 10px', background: '#27ae60', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
-                    >
-                      {savingLimit ? '...' : 'Save'}
+                    <button onClick={saveLicenseLimit} disabled={savingLimit} className="btn" style={button('success', 'sm')}>
+                      {savingLimit ? '…' : 'Save'}
                     </button>
-                    <button
-                      onClick={() => setEditingLimit(false)}
-                      style={{ padding: '4px 10px', background: '#eee', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 11 }}
-                    >
+                    <button onClick={() => setEditingLimit(false)} className="btn" style={button('secondary', 'sm')}>
                       Cancel
                     </button>
                   </span>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ display: 'flex', gap: 8 }}>
                 {!editingLimit && (
                   <button
                     onClick={() => {
                       setLimitValue(clientSummary.max_licenses ? String(clientSummary.max_licenses) : '')
                       setEditingLimit(true)
                     }}
-                    style={{ padding: '5px 14px', background: '#3498db', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
+                    className="btn"
+                    style={{ ...button('secondary', 'sm'), background: color.infoSoft, color: color.info }}
                   >
                     ✏️ Edit
                   </button>
                 )}
-                <button
-                  onClick={pushLicenseLimit}
-                  disabled={savingLimit}
-                  style={{ padding: '5px 14px', background: '#800020', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
-                >
-                  {savingLimit ? '...' : '⬆ Push to Client'}
+                <button onClick={pushLicenseLimit} disabled={savingLimit} className="btn" style={button('primary', 'sm')}>
+                  {savingLimit ? '…' : '⬆ Push to Client'}
                 </button>
               </div>
             </div>
-            <p style={{ margin: '10px 0 0', fontSize: 12, color: '#888' }}>
+            <p style={{ margin: '12px 0 0', fontSize: 12, color: color.textMuted }}>
               Controls how many users can be logged in simultaneously. Leave empty for no limit. Push to apply to client's database.
             </p>
           </div>

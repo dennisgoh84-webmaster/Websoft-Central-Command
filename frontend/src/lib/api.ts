@@ -89,6 +89,7 @@ export interface VideoSetting {
   label: string
   is_active: boolean
   created_at: string
+  assignments: { client_id: string; pushed_at: string | null }[]
 }
 
 export interface ClientModule {

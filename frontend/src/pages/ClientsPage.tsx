@@ -1,6 +1,10 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { api, type ClientSummary } from '../lib/api'
+import { formatDateTime } from '../lib/format'
+import { alert, badge, button, card, color, dismissButton, font, h1, input, label, pageHeader, table, td, th, type Tone } from '../lib/theme'
+
+const STATUS_TONE: Record<string, Tone> = { active: 'success', suspended: 'danger', decommissioned: 'neutral' }
 
 export default function ClientsPage() {
   const [clients, setClients] = useState<ClientSummary[]>([])
@@ -24,59 +28,58 @@ export default function ClientsPage() {
     }
   }
 
-  const statusColor = (s: string) =>
-    s === 'active' ? '#27ae60' : s === 'suspended' ? '#e74c3c' : '#95a5a6'
-
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h1 style={{ margin: 0, fontSize: 22 }}>Client Instances</h1>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          style={{ background: '#800020', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
-        >
+      <div style={pageHeader()}>
+        <h1 style={h1()}>Client Instances</h1>
+        <button onClick={() => setShowForm(!showForm)} className="btn" style={button('primary')}>
           {showForm ? 'Cancel' : '+ Add Client'}
         </button>
       </div>
 
       {showForm && (
-        <div style={{ background: '#fff', padding: 20, borderRadius: 8, border: '1px solid #e0e0e0', marginBottom: 20 }}>
-          {error && <div style={{ background: '#fdecea', color: '#c0392b', padding: '6px 12px', borderRadius: 4, fontSize: 13, marginBottom: 12 }}>{error}</div>}
-          <form onSubmit={onCreate} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={card({ padding: 22, marginBottom: 22 })}>
+          {error && (
+            <div style={alert('danger')}>
+              <span>{error}</span>
+              <button onClick={() => setError('')} style={dismissButton()}>✕</button>
+            </div>
+          )}
+          <form onSubmit={onCreate} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 2 }}>Client Name</label>
-              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required style={{ width: '100%', padding: 6, border: '1px solid #ccc', borderRadius: 4, boxSizing: 'border-box' }} />
+              <label style={label()}>Client Name</label>
+              <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required style={input()} />
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 2 }}>Code</label>
-              <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required style={{ width: '100%', padding: 6, border: '1px solid #ccc', borderRadius: 4, boxSizing: 'border-box' }} placeholder="e.g. ACME" />
+              <label style={label()}>Code</label>
+              <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required style={input()} placeholder="e.g. ACME" />
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 2 }}>DB Host</label>
-              <input value={form.db_host} onChange={(e) => setForm({ ...form, db_host: e.target.value })} required style={{ width: '100%', padding: 6, border: '1px solid #ccc', borderRadius: 4, boxSizing: 'border-box' }} />
+              <label style={label()}>DB Host</label>
+              <input value={form.db_host} onChange={(e) => setForm({ ...form, db_host: e.target.value })} required style={input()} />
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 2 }}>DB Port</label>
-              <input type="number" value={form.db_port} onChange={(e) => setForm({ ...form, db_port: parseInt(e.target.value) })} style={{ width: '100%', padding: 6, border: '1px solid #ccc', borderRadius: 4, boxSizing: 'border-box' }} />
+              <label style={label()}>DB Port</label>
+              <input type="number" value={form.db_port} onChange={(e) => setForm({ ...form, db_port: parseInt(e.target.value) })} style={input()} />
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 2 }}>DB Name</label>
-              <input value={form.db_name} onChange={(e) => setForm({ ...form, db_name: e.target.value })} required style={{ width: '100%', padding: 6, border: '1px solid #ccc', borderRadius: 4, boxSizing: 'border-box' }} />
+              <label style={label()}>DB Name</label>
+              <input value={form.db_name} onChange={(e) => setForm({ ...form, db_name: e.target.value })} required style={input()} />
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 2 }}>DB Username</label>
-              <input value={form.db_username} onChange={(e) => setForm({ ...form, db_username: e.target.value })} required style={{ width: '100%', padding: 6, border: '1px solid #ccc', borderRadius: 4, boxSizing: 'border-box' }} />
+              <label style={label()}>DB Username</label>
+              <input value={form.db_username} onChange={(e) => setForm({ ...form, db_username: e.target.value })} required style={input()} />
             </div>
             <div>
-              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 2 }}>DB Password</label>
-              <input type="password" value={form.db_password} onChange={(e) => setForm({ ...form, db_password: e.target.value })} required style={{ width: '100%', padding: 6, border: '1px solid #ccc', borderRadius: 4, boxSizing: 'border-box' }} />
+              <label style={label()}>DB Password</label>
+              <input type="password" value={form.db_password} onChange={(e) => setForm({ ...form, db_password: e.target.value })} required style={input()} />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 20 }}>
               <input type="checkbox" checked={form.db_use_tls} onChange={(e) => setForm({ ...form, db_use_tls: e.target.checked })} />
-              <label style={{ fontSize: 12, fontWeight: 600 }}>Use TLS</label>
+              <label style={{ fontSize: 13, fontWeight: 500, color: color.text, fontFamily: font.sans }}>Use TLS</label>
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
-              <button type="submit" style={{ background: '#800020', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}>
+              <button type="submit" className="btn" style={button('primary')}>
                 Create Client
               </button>
             </div>
@@ -84,40 +87,38 @@ export default function ClientsPage() {
         </div>
       )}
 
-      <div style={{ background: '#fff', borderRadius: 8, border: '1px solid #e0e0e0', overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+      <div style={card({ padding: 0, overflow: 'hidden' })}>
+        <table style={table()}>
           <thead>
-            <tr style={{ borderBottom: '2px solid #eee' }}>
-              <th style={{ textAlign: 'left', padding: '10px 12px', color: '#888', fontWeight: 600, fontSize: 12 }}>Code</th>
-              <th style={{ textAlign: 'left', padding: '10px 12px', color: '#888', fontWeight: 600, fontSize: 12 }}>Name</th>
-              <th style={{ textAlign: 'left', padding: '10px 12px', color: '#888', fontWeight: 600, fontSize: 12 }}>Status</th>
-              <th style={{ textAlign: 'left', padding: '10px 12px', color: '#888', fontWeight: 600, fontSize: 12 }}>Last Connected</th>
-              <th style={{ textAlign: 'left', padding: '10px 12px', color: '#888', fontWeight: 600, fontSize: 12 }}>Alembic Head</th>
+            <tr>
+              <th style={th()}>Code</th>
+              <th style={th()}>Name</th>
+              <th style={th()}>Status</th>
+              <th style={th()}>Last Connected</th>
+              <th style={th()}>Alembic Head</th>
             </tr>
           </thead>
           <tbody>
             {clients.map((c) => (
-              <tr key={c.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                <td style={{ padding: '8px 12px' }}>
-                  <Link to={`/clients/${c.id}`} style={{ color: '#800020', fontWeight: 600 }}>{c.code}</Link>
+              <tr key={c.id} className="tr" style={{ borderBottom: `1px solid ${color.border}` }}>
+                <td style={td()}>
+                  <Link to={`/clients/${c.id}`} style={{ color: color.brand, fontWeight: 600, textDecoration: 'none' }}>{c.code}</Link>
                 </td>
-                <td style={{ padding: '8px 12px' }}>{c.name}</td>
-                <td style={{ padding: '8px 12px' }}>
-                  <span style={{ display: 'inline-block', padding: '1px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, color: '#fff', background: statusColor(c.status) }}>
-                    {c.status}
-                  </span>
+                <td style={td()}>{c.name}</td>
+                <td style={td()}>
+                  <span style={badge(STATUS_TONE[c.status] ?? 'neutral')}>{c.status}</span>
                 </td>
-                <td style={{ padding: '8px 12px', color: '#888' }}>
-                  {c.last_connected_at ? new Date(c.last_connected_at).toLocaleString() : '—'}
+                <td style={td({ color: color.textMuted })}>
+                  {formatDateTime(c.last_connected_at)}
                 </td>
-                <td style={{ padding: '8px 12px', fontFamily: 'monospace', fontSize: 11, color: '#888' }}>
+                <td style={td({ fontFamily: font.mono, fontSize: 11, color: color.textMuted })}>
                   {c.last_known_alembic_head ?? '—'}
                 </td>
               </tr>
             ))}
             {clients.length === 0 && (
               <tr>
-                <td colSpan={5} style={{ padding: 20, textAlign: 'center', color: '#888' }}>No clients registered yet.</td>
+                <td colSpan={5} style={td({ padding: 26, textAlign: 'center', color: color.textMuted })}>No clients registered yet.</td>
               </tr>
             )}
           </tbody>

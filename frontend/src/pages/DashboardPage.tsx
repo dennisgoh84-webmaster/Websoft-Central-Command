@@ -1,11 +1,24 @@
 import { useEffect, useState } from 'react'
-import { api, type DashboardStats } from '../lib/api'
+import { api, type DashboardStats, type PushLogEntry } from '../lib/api'
+import { formatDateTime } from '../lib/format'
+import { badge, card, color, h1, table, td, th, type Tone } from '../lib/theme'
 
-const cardStyle: React.CSSProperties = {
-  background: '#fff',
-  borderRadius: 8,
-  padding: '16px 20px',
-  border: '1px solid #e0e0e0',
+const STAT_CARDS: { key: keyof DashboardStats; label: string; color: string }[] = [
+  { key: 'total_clients', label: 'Total Clients', color: color.ink },
+  { key: 'active_clients', label: 'Active', color: color.successSolid },
+  { key: 'suspended_clients', label: 'Suspended', color: color.dangerSolid },
+  { key: 'active_ads', label: 'Active Ads', color: color.infoSolid },
+  { key: 'total_config_updates', label: 'Config Updates', color: color.purpleSolid },
+  { key: 'pending_pushes', label: 'Pending Pushes', color: color.warningSolid },
+]
+
+const PUSH_TYPE_TONE: Record<string, Tone> = {
+  advertisement: 'info',
+  license: 'warning',
+  video: 'purple',
+  config: 'brand',
+  version: 'success',
+  support_login: 'neutral',
 }
 
 export default function DashboardPage() {
@@ -15,82 +28,48 @@ export default function DashboardPage() {
     api.getDashboard().then(setStats)
   }, [])
 
-  if (!stats) return <p>Loading dashboard...</p>
+  if (!stats) return <p style={{ color: color.textMuted, fontSize: 13 }}>Loading dashboard…</p>
 
   return (
     <div>
-      <h1 style={{ margin: '0 0 20px', fontSize: 22 }}>Dashboard</h1>
+      <h1 style={{ ...h1(), marginBottom: 22 }}>Dashboard</h1>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginBottom: 24 }}>
-        <div style={cardStyle}>
-          <p style={{ color: '#888', fontSize: 12, margin: 0, textTransform: 'uppercase' }}>Total Clients</p>
-          <p style={{ fontSize: 28, fontWeight: 700, margin: '4px 0 0', color: '#333' }}>{stats.total_clients}</p>
-        </div>
-        <div style={cardStyle}>
-          <p style={{ color: '#888', fontSize: 12, margin: 0, textTransform: 'uppercase' }}>Active</p>
-          <p style={{ fontSize: 28, fontWeight: 700, margin: '4px 0 0', color: '#27ae60' }}>{stats.active_clients}</p>
-        </div>
-        <div style={cardStyle}>
-          <p style={{ color: '#888', fontSize: 12, margin: 0, textTransform: 'uppercase' }}>Suspended</p>
-          <p style={{ fontSize: 28, fontWeight: 700, margin: '4px 0 0', color: '#e74c3c' }}>{stats.suspended_clients}</p>
-        </div>
-        <div style={cardStyle}>
-          <p style={{ color: '#888', fontSize: 12, margin: 0, textTransform: 'uppercase' }}>Active Ads</p>
-          <p style={{ fontSize: 28, fontWeight: 700, margin: '4px 0 0', color: '#3498db' }}>{stats.active_ads}</p>
-        </div>
-        <div style={cardStyle}>
-          <p style={{ color: '#888', fontSize: 12, margin: 0, textTransform: 'uppercase' }}>Config Updates</p>
-          <p style={{ fontSize: 28, fontWeight: 700, margin: '4px 0 0', color: '#8e44ad' }}>{stats.total_config_updates}</p>
-        </div>
-        <div style={cardStyle}>
-          <p style={{ color: '#888', fontSize: 12, margin: 0, textTransform: 'uppercase' }}>Pending Pushes</p>
-          <p style={{ fontSize: 28, fontWeight: 700, margin: '4px 0 0', color: '#e67e22' }}>{stats.pending_pushes}</p>
-        </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 16, marginBottom: 26 }}>
+        {STAT_CARDS.map((s) => (
+          <div key={s.key} style={card({ padding: '18px 20px' })}>
+            <p style={{ color: color.textMuted, fontSize: 11.5, margin: 0, textTransform: 'uppercase', letterSpacing: '.04em', fontWeight: 600 }}>{s.label}</p>
+            <p style={{ fontSize: 30, fontWeight: 700, margin: '6px 0 0', color: s.color, letterSpacing: '-0.02em' }}>{stats[s.key] as number}</p>
+          </div>
+        ))}
       </div>
 
-      <div style={cardStyle}>
-        <h2 style={{ fontSize: 16, margin: '0 0 12px' }}>Recent Push Activity</h2>
+      <div style={card({ padding: 0, overflow: 'hidden' })}>
+        <h2 style={{ fontSize: 14.5, margin: 0, padding: '16px 20px', borderBottom: `1px solid ${color.border}`, fontWeight: 600, color: color.ink }}>
+          Recent Push Activity
+        </h2>
         {stats.recent_pushes.length === 0 ? (
-          <p style={{ color: '#888', fontSize: 13 }}>No push activity yet.</p>
+          <p style={{ color: color.textMuted, fontSize: 13, padding: '20px' }}>No push activity yet.</p>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <table style={table()}>
             <thead>
-              <tr style={{ borderBottom: '2px solid #eee' }}>
-                <th style={{ textAlign: 'left', padding: '6px 8px', color: '#888', fontWeight: 600 }}>Type</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', color: '#888', fontWeight: 600 }}>Detail</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', color: '#888', fontWeight: 600 }}>Status</th>
-                <th style={{ textAlign: 'left', padding: '6px 8px', color: '#888', fontWeight: 600 }}>Time</th>
+              <tr>
+                <th style={th()}>Type</th>
+                <th style={th()}>Detail</th>
+                <th style={th()}>Status</th>
+                <th style={th()}>Time</th>
               </tr>
             </thead>
             <tbody>
-              {stats.recent_pushes.map((p) => (
-                <tr key={p.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                  <td style={{ padding: '6px 8px' }}>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        padding: '1px 6px',
-                        borderRadius: 3,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        color: '#fff',
-                        background:
-                          p.push_type === 'advertisement' ? '#3498db'
-                          : p.push_type === 'license' ? '#e67e22'
-                          : p.push_type === 'video' ? '#8e44ad'
-                          : '#27ae60',
-                      }}
-                    >
-                      {p.push_type}
-                    </span>
+              {stats.recent_pushes.map((p: PushLogEntry) => (
+                <tr key={p.id} className="tr" style={{ borderBottom: `1px solid ${color.border}` }}>
+                  <td style={td()}>
+                    <span style={badge(PUSH_TYPE_TONE[p.push_type] ?? 'neutral')}>{p.push_type}</span>
                   </td>
-                  <td style={{ padding: '6px 8px' }}>{p.detail}</td>
-                  <td style={{ padding: '6px 8px', color: p.success ? '#27ae60' : '#e74c3c' }}>
+                  <td style={td()}>{p.detail}</td>
+                  <td style={td({ color: p.success ? color.success : color.danger, fontWeight: 500 })}>
                     {p.success ? '✓ OK' : '✗ Failed'}
                   </td>
-                  <td style={{ padding: '6px 8px', color: '#888' }}>
-                    {new Date(p.pushed_at).toLocaleString()}
-                  </td>
+                  <td style={td({ color: color.textMuted })}>{formatDateTime(p.pushed_at)}</td>
                 </tr>
               ))}
             </tbody>
