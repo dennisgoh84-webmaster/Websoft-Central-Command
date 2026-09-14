@@ -20,6 +20,9 @@ from app.services.client_db import _build_dsn, _check_alembic_version
 
 router = APIRouter(prefix="/api/staff", tags=["staff"])
 
+VALID_ROLES = ("super_admin", "admin", "support_engineer", "viewer")
+SUPER_ADMIN = "super_admin"
+
 
 # ── Staff CRUD ───────────────────────────────────────────────────────
 
@@ -45,9 +48,8 @@ def create_staff(
     if existing:
         raise HTTPException(400, f"Username '{body.username}' already exists")
 
-    valid_roles = ("super_admin", "admin", "support_engineer", "viewer")
-    if body.role not in valid_roles:
-        raise HTTPException(400, f"Invalid role. Must be one of: {', '.join(valid_roles)}")
+    if body.role not in VALID_ROLES:
+        raise HTTPException(400, f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
 
     user = AdminUser(
         username=body.username,
@@ -75,6 +77,18 @@ def update_staff(
     user = db.get(AdminUser, user_id)
     if not user:
         raise HTTPException(404, "Staff not found")
+
+    if body.role is not None and body.role not in VALID_ROLES:
+        raise HTTPException(400, f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
+
+    # A super admin account can never be disabled or demoted — by anyone,
+    # including another super admin or the account itself. This keeps at
+    # least one fully-privileged login reachable at all times.
+    if user.role == SUPER_ADMIN:
+        if body.is_active is False:
+            raise HTTPException(403, "Super admin accounts cannot be disabled")
+        if body.role is not None and body.role != SUPER_ADMIN:
+            raise HTTPException(403, "Super admin accounts cannot be demoted")
 
     if body.full_name is not None:
         user.full_name = body.full_name
@@ -106,6 +120,8 @@ def delete_staff(
         raise HTTPException(404, "Staff not found")
     if str(user.id) == str(admin.id):
         raise HTTPException(400, "Cannot delete yourself")
+    if user.role == SUPER_ADMIN:
+        raise HTTPException(403, "Super admin accounts cannot be deleted")
 
     db.delete(user)
     db.commit()

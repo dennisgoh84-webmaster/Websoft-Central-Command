@@ -142,7 +142,9 @@ Upgrade records intent only. It does not run Alembic on the client.
 
 Roles: `super_admin`, `admin`, `support_engineer`, `viewer`. Only a
 super_admin can add, edit, disable or delete staff, and cannot delete
-themselves.
+themselves. Super admin accounts are protected: the API refuses to
+disable, demote or delete them, and the row shows 🔒 Protected instead
+of a Disable button.
 
 Support login:
 

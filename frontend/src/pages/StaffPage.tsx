@@ -54,7 +54,9 @@ export default function StaffPage() {
   }
 
   const handleToggleActive = async (s: AdminUser) => {
-    await api.updateStaff(s.id, { is_active: !s.is_active })
+    try {
+      await api.updateStaff(s.id, { is_active: !s.is_active })
+    } catch (e: any) { setMsg(e.message) }
     load()
   }
 
@@ -201,9 +203,13 @@ export default function StaffPage() {
                     }
                   </td>
                   <td style={{ padding: '10px 14px' }}>
-                    <button onClick={() => handleToggleActive(s)} style={{ padding: '3px 10px', background: s.is_active ? '#e74c3c' : '#27ae60', color: '#fff', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
-                      {s.is_active ? 'Disable' : 'Enable'}
-                    </button>
+                    {s.role === 'super_admin'
+                      ? <span title="Super admin accounts cannot be disabled" style={{ color: '#888', fontSize: 11 }}>🔒 Protected</span>
+                      : (
+                        <button onClick={() => handleToggleActive(s)} style={{ padding: '3px 10px', background: s.is_active ? '#e74c3c' : '#27ae60', color: '#fff', border: 'none', borderRadius: 3, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+                          {s.is_active ? 'Disable' : 'Enable'}
+                        </button>
+                      )}
                   </td>
                 </tr>
               ))}
