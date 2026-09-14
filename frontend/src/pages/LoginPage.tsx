@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import { api } from '../lib/api'
 import { alert, button, color, dismissButton, font, input, radius } from '../lib/theme'
+import logo from '../assets/logo-maroon.png'
 
 type View = 'login' | 'otp' | 'forgot_password' | 'reset_password' | 'forgot_username'
 
@@ -169,15 +170,15 @@ export default function LoginPage() {
           boxShadow: '0 24px 60px rgba(0,0,0,.35)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-          <div style={{ width: 32, height: 32, borderRadius: radius.sm, background: color.brand, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15 }}>🖥️</div>
+        <div style={{ textAlign: 'center', marginBottom: 22 }}>
+          <img src={logo} alt="WebMaster Consultancy" style={{ height: 46, marginBottom: 14 }} />
           <h1 style={{ fontSize: 19, margin: 0, color: color.ink, fontWeight: 700, letterSpacing: '-0.01em' }}>
             Central Command
           </h1>
+          <p style={{ color: color.textMuted, fontSize: 12.5, margin: '3px 0 0' }}>
+            Admin Portal
+          </p>
         </div>
-        <p style={{ color: color.textMuted, fontSize: 13, margin: '2px 0 26px' }}>
-          Web Master Consultancy — Admin Portal
-        </p>
 
         {error && (
           <div style={alert('danger')}>

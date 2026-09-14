@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { color, font, radius } from '../lib/theme'
 import type { ReactNode } from 'react'
+import logo from '../assets/logo-white.png'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: '📊' },
@@ -37,30 +38,11 @@ export default function Layout({ children }: { children: ReactNode }) {
           flexDirection: 'column',
         }}
       >
-        <div style={{ padding: '0 20px 20px', borderBottom: `1px solid ${color.sidebarBorder}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-          <div
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: radius.sm,
-              background: color.brand,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 16,
-              flexShrink: 0,
-            }}
-          >
-            🖥️
-          </div>
-          <div>
-            <h1 style={{ fontSize: 14.5, margin: 0, color: '#fff', fontWeight: 700, letterSpacing: '-0.01em' }}>
-              Central Command
-            </h1>
-            <p style={{ fontSize: 11, margin: '2px 0 0', color: color.sidebarText }}>
-              Web Master Consultancy
-            </p>
-          </div>
+        <div style={{ padding: '0 20px 18px', borderBottom: `1px solid ${color.sidebarBorder}` }}>
+          <img src={logo} alt="WebMaster Consultancy" style={{ width: 150, display: 'block' }} />
+          <p style={{ fontSize: 11, margin: '8px 0 0', color: color.sidebarText, fontWeight: 600, letterSpacing: '.02em', textTransform: 'uppercase' }}>
+            Central Command
+          </p>
         </div>
 
         <div style={{ flex: 1, padding: '14px 12px' }}>
