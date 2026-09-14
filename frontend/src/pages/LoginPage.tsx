@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import { api } from '../lib/api'
 import { alert, button, color, dismissButton, font, input, radius } from '../lib/theme'
-import logo from '../assets/logo-maroon.png'
+import logo from '../assets/logo-color.png'
 
 type View = 'login' | 'otp' | 'forgot_password' | 'reset_password' | 'forgot_username'
 
