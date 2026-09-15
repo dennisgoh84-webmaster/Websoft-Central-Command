@@ -48,6 +48,28 @@ merge). Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   The backend container now runs php-fpm + nginx instead of uvicorn.
 
 ### Fixed
+- **Backend Docker image built on the wrong PHP version.** `backend/Dockerfile`
+  was pinned to `php:8.3-fpm-bookworm`, but Laravel 13 pulls in Symfony 8
+  components that require PHP `>=8.4.1` — a fresh clone couldn't
+  `composer install` inside the container. Bumped to
+  `php:8.4-fpm-bookworm`; also tightened `composer.json`'s own `php`
+  constraint from `^8.2` to `^8.4` to match reality, and refreshed
+  `composer.lock`'s content-hash (no dependency versions changed).
+- **`scripts/deploy.sh` could leave `CC_APP_KEY` unset.** It only
+  generated the three required secrets when `.env` didn't exist at all,
+  so an `.env` that already existed but was missing just one of them
+  (e.g. hand-created via `cp .env.example .env` per the old manual
+  instructions, then only the two `openssl rand` fields filled in) sailed
+  through the script and failed later at `docker compose up` with
+  "required variable CC_APP_KEY is missing a value". It now fills in any
+  of the three secrets that are still blank, whether the file is brand
+  new or pre-existing, and leaves anything already set untouched.
+- **`scripts/deploy.sh` skipped rebuilding a stopped stack.** It decided
+  "nothing to do" purely from whether the checked-out commit had
+  changed, so re-running it after a reboot (containers stopped, commit
+  unchanged) did nothing instead of bringing the stack back up. It now
+  also checks whether `cc-backend` is actually running and only skips
+  when both are true.
 - Alembic migration history now covers the whole schema. Previously
   only `login_otps` had a real migration; the other twelve tables
   existed solely via `Base.metadata.create_all()`, so any schema

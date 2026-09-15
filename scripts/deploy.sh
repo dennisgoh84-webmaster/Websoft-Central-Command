@@ -14,17 +14,22 @@
 #   1. Installs Docker if it isn't already on the box
 #   2. Clones the repo on first run (into ./central-command), or reuses
 #      the existing checkout on every run after that
-#   3. Creates .env with freshly generated secrets on first run, leaves
-#      it untouched after that
-#   4. Backs up the Central Command database before touching anything
-#      (skipped on a first run — there's nothing to back up yet)
-#   5. Pulls the target code, rebuilds the containers — the backend
+#   3. Creates .env from the template on first run; either way, fills in
+#      any of the three required secrets (CC_POSTGRES_PASSWORD,
+#      CC_JWT_SECRET_KEY, CC_APP_KEY) that are still blank — covers a
+#      hand-created .env that missed one, not just a brand new file
+#   4. If the code is already at the target commit AND the stack is
+#      already running, stops here — nothing to do. Otherwise continues
+#      even on an unchanged commit, so a stopped stack still gets started.
+#   5. Backs up the Central Command database before touching anything
+#      (skipped when there's no database running yet to back up)
+#   6. Pulls the target code, rebuilds the containers — the backend
 #      container runs pending Laravel migrations automatically on start
 #      (see backend/app/Console/Commands/CentralCommandInstall.php),
 #      so this is what upgrades an already-running install
-#   6. Waits for the backend to report healthy, then runs the smoke test
+#   7. Waits for the backend to report healthy, then runs the smoke test
 #
-# If anything fails after step 4, the database backup from that step is
+# If anything fails after step 5, the database backup from that step is
 # left in place and the script prints how to restore it.
 set -euo pipefail
 
@@ -72,35 +77,59 @@ else
   FIRST_RUN=1
 fi
 
-if [ "$FIRST_RUN" = "0" ] && [ "$NEW_COMMIT" = "$PREV_COMMIT" ]; then
-  echo "Already up to date at $NEW_COMMIT. Nothing to build."
+# 3. .env -----------------------------------------------------------------
+if [ ! -f .env ]; then
+  say "Creating .env from the template"
+  cp .env.example .env
+  chmod 600 .env
+else
+  say "Using existing .env"
+fi
+
+# Fill in any of the three required secrets that are still blank. Covers
+# both a brand new .env (all three blank) and one that was hand-created
+# (e.g. `cp .env.example .env` per the old manual instructions) and left
+# one unset — which otherwise only surfaces later as docker compose
+# refusing to start with "required variable ... is missing".
+fill_secret_if_blank() {
+  key="$1"; value="$2"
+  if grep -qE "^${key}=.+" .env; then
+    return
+  fi
+  if grep -qE "^${key}=" .env; then
+    sed -i "s|^${key}=.*|${key}=${value}|" .env
+  else
+    echo "${key}=${value}" >> .env
+  fi
+  echo "  generated ${key}"
+}
+fill_secret_if_blank CC_POSTGRES_PASSWORD "$(openssl rand -hex 24)"
+fill_secret_if_blank CC_JWT_SECRET_KEY "$(openssl rand -hex 32)"
+fill_secret_if_blank CC_APP_KEY "base64:$(openssl rand -base64 32)"
+
+# shellcheck disable=SC1091
+set -a; . ./.env; set +a
+PORT="${CC_HTTP_PORT:-8080}"
+
+# 4. Skip only if nothing has changed AND the stack is actually running ---
+# (checked here, after .env is guaranteed complete, since `docker compose
+# ps` needs it to interpolate the compose file at all)
+STACK_RUNNING=0
+BACKEND_CID=$(docker compose ps -q cc-backend 2>/dev/null || true)
+if [ -n "$BACKEND_CID" ] && [ "$(docker inspect -f '{{.State.Running}}' "$BACKEND_CID" 2>/dev/null || echo false)" = "true" ]; then
+  STACK_RUNNING=1
+fi
+
+if [ "$FIRST_RUN" = "0" ] && [ "$NEW_COMMIT" = "$PREV_COMMIT" ] && [ "$STACK_RUNNING" = "1" ]; then
+  echo "Already up to date at $NEW_COMMIT and the stack is running. Nothing to do."
   exit 0
 fi
 
 say "Deploying $PREV_COMMIT -> $NEW_COMMIT"
 
-# 3. .env -----------------------------------------------------------------
-if [ ! -f .env ]; then
-  say "Creating .env with generated secrets"
-  PG_PW=$(openssl rand -hex 24)
-  JWT=$(openssl rand -hex 32)
-  APP_KEY="base64:$(openssl rand -base64 32)"
-  sed -e "s|^CC_POSTGRES_PASSWORD=.*|CC_POSTGRES_PASSWORD=$PG_PW|" \
-      -e "s|^CC_JWT_SECRET_KEY=.*|CC_JWT_SECRET_KEY=$JWT|" \
-      -e "s|^CC_APP_KEY=.*|CC_APP_KEY=$APP_KEY|" \
-      .env.example > .env
-  chmod 600 .env
-  echo ".env written (chmod 600). Edit CC_HTTP_PORT there if 8080 is taken, then re-run."
-else
-  say "Using existing .env"
-fi
-# shellcheck disable=SC1091
-set -a; . ./.env; set +a
-PORT="${CC_HTTP_PORT:-8080}"
-
-# 4. Back up the database before touching anything ------------------------
+# 5. Back up the database before touching anything ------------------------
 BACKUP_FILE="(none — no prior database)"
-if [ "$FIRST_RUN" = "0" ] && [ -n "$(docker compose ps -q cc-db 2>/dev/null || true)" ]; then
+if [ -n "$(docker compose ps -q cc-db 2>/dev/null || true)" ]; then
   say "Backing up the database"
   mkdir -p backups
   STAMP=$(date +%Y%m%d-%H%M%S)
@@ -109,11 +138,11 @@ if [ "$FIRST_RUN" = "0" ] && [ -n "$(docker compose ps -q cc-db 2>/dev/null || t
   echo "Backup written to $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
 fi
 
-# 5. Build and start --------------------------------------------------------
+# 6. Build and start --------------------------------------------------------
 say "Building images and starting the stack"
 docker compose up -d --build
 
-# 6. Wait for health, then verify --------------------------------------------
+# 7. Wait for health, then verify --------------------------------------------
 say "Waiting for the backend to become healthy"
 HEALTHY=0
 for _ in $(seq 1 60); do
