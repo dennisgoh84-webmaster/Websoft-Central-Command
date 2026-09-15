@@ -7,6 +7,14 @@ merge). Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ## Unreleased
 
 ### Added
+- **"Same server" helper on New Client.** A checkbox on the Add Client
+  form that fills in Host (`localhost`) and a starting Port, and turns
+  off TLS by default (same-host Postgres rarely has it configured). DB
+  Name/Username/Password stay manual with placeholder hints — a
+  password can't be auto-detected (Postgres only ever stores a one-way
+  hash of it), and each co-located client normally publishes its own
+  Postgres on its own host port, so 5432 is only a starting guess, not
+  a fact.
 - **Video Banner screen** — second tab on the Advertisements page.
   Create a banner (video URL + label), target clients, and push;
   previously this only existed as an API (`/api/advertisements/videos`)

@@ -10,7 +10,21 @@ export default function ClientsPage() {
   const [clients, setClients] = useState<ClientSummary[]>([])
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ name: '', code: '', db_host: '', db_port: 5432, db_name: '', db_username: '', db_password: '', db_use_tls: true })
+  const [sameServer, setSameServer] = useState(false)
   const [error, setError] = useState('')
+
+  // "Same server" only fills in what's actually inferable without credentials:
+  // a Postgres password can never be detected (Postgres only stores a
+  // one-way hash of it, by design), and each co-located client normally
+  // publishes its own Postgres on its own host port, not a shared one —
+  // so Name/Username/Password stay manual, and Port is a starting guess,
+  // not a fact. See the inline hint rendered below.
+  function toggleSameServer(checked: boolean) {
+    setSameServer(checked)
+    if (checked) {
+      setForm((f) => ({ ...f, db_host: 'localhost', db_port: f.db_port || 5432, db_use_tls: false }))
+    }
+  }
 
   const refresh = () => api.listClients().then(setClients)
   useEffect(() => { refresh() }, [])
@@ -22,6 +36,7 @@ export default function ClientsPage() {
       await api.createClient(form)
       setShowForm(false)
       setForm({ name: '', code: '', db_host: '', db_port: 5432, db_name: '', db_username: '', db_password: '', db_use_tls: true })
+      setSameServer(false)
       refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed')
@@ -54,6 +69,22 @@ export default function ClientsPage() {
               <label style={label()}>Code</label>
               <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} required style={input()} placeholder="e.g. ACME" />
             </div>
+            <div style={{ gridColumn: '1 / -1', background: color.infoSoft, border: `1px solid ${color.info}22`, borderRadius: 8, padding: '10px 14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input id="same-server" type="checkbox" checked={sameServer} onChange={(e) => toggleSameServer(e.target.checked)} />
+                <label htmlFor="same-server" style={{ fontSize: 13, fontWeight: 600, color: color.info, fontFamily: font.sans, cursor: 'pointer' }}>
+                  🖥️ This client's instance runs on this same server
+                </label>
+              </div>
+              <p style={{ margin: '6px 0 0 24px', fontSize: 12, color: color.textMuted, lineHeight: 1.5 }}>
+                Fills in Host (<code style={{ fontFamily: font.mono }}>localhost</code>) and a starting Port for you.
+                A database password can never be auto-detected — Postgres only ever stores an irreversible hash of
+                it, on this server or any other. Get DB Name / Username / Password from that client's own{' '}
+                <code style={{ fontFamily: font.mono }}>.env</code> or <code style={{ fontFamily: font.mono }}>docker-compose.yml</code>.
+                If more than one client shares this box, each one normally publishes Postgres on its own port
+                (e.g. 5433, 5434…) — 5432 is only right if this is the sole instance here.
+              </p>
+            </div>
             <div>
               <label style={label()}>DB Host</label>
               <input value={form.db_host} onChange={(e) => setForm({ ...form, db_host: e.target.value })} required style={input()} />
@@ -64,11 +95,11 @@ export default function ClientsPage() {
             </div>
             <div>
               <label style={label()}>DB Name</label>
-              <input value={form.db_name} onChange={(e) => setForm({ ...form, db_name: e.target.value })} required style={input()} />
+              <input value={form.db_name} onChange={(e) => setForm({ ...form, db_name: e.target.value })} required style={input()} placeholder={sameServer ? 'e.g. acme_erp' : undefined} />
             </div>
             <div>
               <label style={label()}>DB Username</label>
-              <input value={form.db_username} onChange={(e) => setForm({ ...form, db_username: e.target.value })} required style={input()} />
+              <input value={form.db_username} onChange={(e) => setForm({ ...form, db_username: e.target.value })} required style={input()} placeholder={sameServer ? 'e.g. acme_app' : undefined} />
             </div>
             <div>
               <label style={label()}>DB Password</label>
