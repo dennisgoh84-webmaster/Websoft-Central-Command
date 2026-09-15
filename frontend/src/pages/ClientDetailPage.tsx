@@ -13,6 +13,7 @@ type EditForm = {
   db_password: string
   db_use_tls: boolean
   notes: string
+  app_key: string
 }
 
 function toEditForm(c: Client): EditForm {
@@ -25,6 +26,7 @@ function toEditForm(c: Client): EditForm {
     db_password: '', // never returned by the API — blank means "keep current"
     db_use_tls: c.db_use_tls,
     notes: c.notes ?? '',
+    app_key: '', // never returned by the API — blank means "keep current"
   }
 }
 
@@ -122,13 +124,16 @@ export default function ClientDetailPage() {
     setSaving(true)
     setError('')
     try {
-      // Only send db_password if the admin actually typed a new one —
-      // the API never returns the current one, so an empty field here
-      // means "leave it as is", not "clear the password".
-      const { db_password, ...rest } = editForm
-      const payload: Partial<Client> & { db_password?: string } = { ...rest }
+      // Only send db_password / app_key if the admin actually typed a
+      // new one — the API never returns the current values, so an
+      // empty field here means "leave it as is", not "clear it".
+      const { db_password, app_key, ...rest } = editForm
+      const payload: Partial<Client> & { db_password?: string; app_key?: string } = { ...rest }
       if (db_password.trim() !== '') {
         payload.db_password = db_password
+      }
+      if (app_key.trim() !== '') {
+        payload.app_key = app_key
       }
       const updated = await api.updateClient(id, payload)
       setClient(updated)
@@ -366,7 +371,7 @@ export default function ClientDetailPage() {
                 }}>
                   <strong style={{ color: testResult.success ? color.success : color.danger }}>{testResult.success ? '✅ Connected' : '❌ Failed'}</strong>
                   <p style={{ margin: '5px 0 0' }}>{testResult.message}</p>
-                  {testResult.alembic_head && <p style={{ margin: '3px 0 0' }}>Alembic head: <code style={{ fontFamily: font.mono }}>{testResult.alembic_head}</code></p>}
+                  {testResult.migration_head && <p style={{ margin: '3px 0 0' }}>Migration head: <code style={{ fontFamily: font.mono }}>{testResult.migration_head}</code></p>}
                   {testResult.companies && (
                     <div style={{ marginTop: 8 }}>
                       <strong>Companies ({testResult.companies.length}):</strong>
@@ -395,7 +400,15 @@ export default function ClientDetailPage() {
               <table style={{ fontSize: 13 }}>
                 <tbody>
                   <tr><td style={infoRow}>Last Connected</td><td style={infoVal}>{formatDateTime(client.last_connected_at)}</td></tr>
-                  <tr><td style={infoRow}>Alembic Head</td><td style={{ ...infoVal, fontFamily: font.mono, fontSize: 11 }}>{client.last_known_alembic_head ?? '—'}</td></tr>
+                  <tr><td style={infoRow}>Migration Head</td><td style={{ ...infoVal, fontFamily: font.mono, fontSize: 11 }}>{client.last_known_migration_head ?? '—'}</td></tr>
+                  <tr>
+                    <td style={infoRow}>APP_KEY</td>
+                    <td style={infoVal}>
+                      {client.app_key_set
+                        ? <span style={{ color: color.success, fontWeight: 600 }}>Set</span>
+                        : <span style={{ color: color.textFaint }}>Not set</span>}
+                    </td>
+                  </tr>
                   <tr><td style={infoRow}>Created</td><td style={infoVal}>{formatDateTime(client.created_at)}</td></tr>
                   <tr><td style={infoRow}>Updated</td><td style={infoVal}>{formatDateTime(client.updated_at)}</td></tr>
                 </tbody>
@@ -409,15 +422,31 @@ export default function ClientDetailPage() {
                 )
               ) : (
                 editForm && (
-                  <div style={{ marginTop: 14 }}>
-                    <label style={fieldLabel()}>Notes</label>
-                    <textarea
-                      value={editForm.notes}
-                      onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
-                      rows={3}
-                      style={{ ...input(), resize: 'vertical' }}
-                    />
-                  </div>
+                  <>
+                    <div style={{ marginTop: 14 }}>
+                      <label style={fieldLabel()}>Notes</label>
+                      <textarea
+                        value={editForm.notes}
+                        onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                        rows={3}
+                        style={{ ...input(), resize: 'vertical' }}
+                      />
+                    </div>
+                    <div style={{ marginTop: 14 }}>
+                      <label style={fieldLabel()}>APP_KEY</label>
+                      <input
+                        type="password"
+                        value={editForm.app_key}
+                        onChange={(e) => setEditForm({ ...editForm, app_key: e.target.value })}
+                        placeholder={client.app_key_set ? '•••••••• (leave blank to keep current)' : 'base64:… from that client\'s backend-php/.env'}
+                        style={{ ...input(), fontFamily: font.mono, fontSize: 12 }}
+                      />
+                      <p style={{ margin: '5px 0 0', fontSize: 11, color: color.textFaint }}>
+                        Only needed for System Mail pushes — lets Central Command encrypt the mailbox password
+                        the way this client's own app would.
+                      </p>
+                    </div>
+                  </>
                 )
               )}
             </div>

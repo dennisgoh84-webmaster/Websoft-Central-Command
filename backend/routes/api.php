@@ -8,6 +8,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\StaffController;
+use App\Http\Controllers\SystemMailController;
 use App\Http\Controllers\VersionController;
 use Illuminate\Support\Facades\Route;
 
@@ -85,6 +86,15 @@ Route::middleware('cc.auth')->group(function () {
         Route::get('/upgrade-logs', [VersionController::class, 'upgradeLogs']);
         Route::patch('/{versionId}', [VersionController::class, 'update']);
         Route::delete('/{versionId}', [VersionController::class, 'destroy']);
+    });
+
+    // ── System Mail Settings ─────────────────────────────────────────
+    Route::prefix('system-mail')->group(function () {
+        Route::get('/', [SystemMailController::class, 'index']);
+        Route::post('/', [SystemMailController::class, 'store']);
+        Route::patch('/{settingId}', [SystemMailController::class, 'update']);
+        Route::delete('/{settingId}', [SystemMailController::class, 'destroy']);
+        Route::post('/{settingId}/push', [SystemMailController::class, 'push']);
     });
 
     // ── Staff Management ─────────────────────────────────────────────

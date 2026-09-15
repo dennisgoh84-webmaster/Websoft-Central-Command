@@ -126,7 +126,7 @@ export default function ClientsPage() {
               <th style={th()}>Name</th>
               <th style={th()}>Status</th>
               <th style={th()}>Last Connected</th>
-              <th style={th()}>Alembic Head</th>
+              <th style={th()}>Migration Head</th>
             </tr>
           </thead>
           <tbody>
@@ -143,7 +143,7 @@ export default function ClientsPage() {
                   {formatDateTime(c.last_connected_at)}
                 </td>
                 <td style={td({ fontFamily: font.mono, fontSize: 11, color: color.textMuted })}>
-                  {c.last_known_alembic_head ?? '—'}
+                  {c.last_known_migration_head ?? '—'}
                 </td>
               </tr>
             ))}

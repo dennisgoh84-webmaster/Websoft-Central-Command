@@ -175,7 +175,7 @@ class StaffController extends Controller
 
         try {
             $pdo = $this->clientDb->connect($client);
-            $this->clientDb->checkAlembicVersion($pdo);
+            $this->clientDb->checkMigrationHead($pdo);
 
             $companyRow = $pdo->query("SELECT id FROM companies WHERE is_active = true LIMIT 1")->fetch(PDO::FETCH_NUM);
             if (! $companyRow) {

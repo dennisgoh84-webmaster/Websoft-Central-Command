@@ -31,7 +31,7 @@ class VersionController extends Controller
 
         $version = new ErpVersion([
             'version_number' => $versionNumber,
-            'alembic_head' => $request->input('alembic_head'),
+            'migration_head' => $request->input('migration_head'),
             'release_notes' => $request->input('release_notes'),
             'created_by' => $admin->id,
         ]);
@@ -51,8 +51,8 @@ class VersionController extends Controller
         if ($request->filled('version_number')) {
             $version->version_number = $request->input('version_number');
         }
-        if ($request->filled('alembic_head')) {
-            $version->alembic_head = $request->input('alembic_head');
+        if ($request->filled('migration_head')) {
+            $version->migration_head = $request->input('migration_head');
         }
         if ($request->exists('release_notes') && $request->input('release_notes') !== null) {
             $version->release_notes = $request->input('release_notes');
@@ -88,7 +88,7 @@ class VersionController extends Controller
         return response()->noContent();
     }
 
-    /** Compare all clients' current Alembic head against known versions. */
+    /** Compare all clients' current migration head against known versions. */
     public function clientVersions()
     {
         $clients = Client::where('status', '!=', 'DECOMMISSIONED')->get();
@@ -97,20 +97,20 @@ class VersionController extends Controller
 
         $headToVersion = [];
         foreach ($versions as $v) {
-            $headToVersion[$v->alembic_head] = $v->version_number;
+            $headToVersion[$v->migration_head] = $v->version_number;
         }
         $latestVersion = $latest?->version_number;
 
         $result = [];
         foreach ($clients as $c) {
-            $currentVersion = $c->last_known_alembic_head ? ($headToVersion[$c->last_known_alembic_head] ?? null) : null;
+            $currentVersion = $c->last_known_migration_head ? ($headToVersion[$c->last_known_migration_head] ?? null) : null;
             $isUpToDate = $currentVersion && $latestVersion ? $currentVersion === $latestVersion : false;
 
             $result[] = [
                 'client_id' => (string) $c->id,
                 'client_name' => $c->name,
                 'client_code' => $c->code,
-                'current_alembic_head' => $c->last_known_alembic_head,
+                'current_migration_head' => $c->last_known_migration_head,
                 'current_version' => $currentVersion,
                 'latest_version' => $latestVersion,
                 'is_up_to_date' => $isUpToDate,
@@ -125,8 +125,8 @@ class VersionController extends Controller
      * Push a version upgrade to a client's ERP database.
      *
      * This records the upgrade intent and updates the client's known
-     * Alembic head. The actual migration execution depends on the
-     * client's deployment setup (Alembic upgrade command run on the
+     * migration head. The actual migration execution depends on the
+     * client's deployment setup (`php artisan migrate` run on the
      * client side). Central Command records the push and updates the
      * version tracking.
      */
@@ -146,26 +146,26 @@ class VersionController extends Controller
             throw new ApiException(400, 'Can only upgrade to a released version');
         }
 
-        $fromVersion = $client->last_known_alembic_head;
+        $fromVersion = $client->last_known_migration_head;
 
         $log = new ClientUpgradeLog([
             'client_id' => $client->id,
             'from_version' => $fromVersion,
             'to_version' => $version->version_number,
-            'to_alembic_head' => $version->alembic_head,
+            'to_migration_head' => $version->migration_head,
             'success' => true,
             'upgraded_by' => $admin->id,
         ]);
         $log->save();
 
-        $client->last_known_alembic_head = $version->alembic_head;
+        $client->last_known_migration_head = $version->migration_head;
         $client->last_connected_at = Carbon::now();
         $client->save();
 
         PushLog::create([
             'client_id' => $client->id,
             'push_type' => 'version',
-            'detail' => "Upgraded to v{$version->version_number} (head: {$version->alembic_head})",
+            'detail' => "Upgraded to v{$version->version_number} (head: {$version->migration_head})",
             'success' => true,
             'pushed_by' => $admin->id,
         ]);
@@ -191,7 +191,7 @@ class VersionController extends Controller
             'client_id' => (string) $l->client_id,
             'from_version' => $l->from_version,
             'to_version' => $l->to_version,
-            'to_alembic_head' => $l->to_alembic_head,
+            'to_migration_head' => $l->to_migration_head,
             'success' => $l->success,
             'error_message' => $l->error_message,
             'upgraded_at' => $l->upgraded_at?->toISOString(),
@@ -204,7 +204,7 @@ class VersionController extends Controller
         return [
             'id' => (string) $v->id,
             'version_number' => $v->version_number,
-            'alembic_head' => $v->alembic_head,
+            'migration_head' => $v->migration_head,
             'release_notes' => $v->release_notes,
             'status' => $v->status,
             'is_latest' => $v->is_latest,

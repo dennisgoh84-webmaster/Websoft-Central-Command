@@ -11,6 +11,11 @@ use App\Casts\UppercaseDbEnum;
  * manage licenses, and push config updates. Connection credentials are
  * stored here (encrypted at rest in production via env-level encryption
  * or a secrets manager — not in Central Command's app layer).
+ *
+ * `app_key` is that client's own Laravel APP_KEY — only needed to push
+ * System Mail Settings, whose password column is behind the client's
+ * `encrypted` Eloquent cast (see ClientDbService::encryptForClient()).
+ * Nullable: not every client uses that feature.
  */
 class Client extends CcModel
 {
@@ -19,7 +24,7 @@ class Client extends CcModel
     protected $fillable = [
         'name', 'code', 'db_host', 'db_port', 'db_name', 'db_username',
         'db_password', 'db_use_tls', 'status', 'notes', 'max_licenses',
-        'last_connected_at', 'last_known_alembic_head',
+        'last_connected_at', 'last_known_migration_head', 'app_key',
     ];
 
     protected function casts(): array

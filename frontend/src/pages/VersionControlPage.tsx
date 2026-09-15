@@ -14,7 +14,7 @@ export default function VersionControlPage() {
   const [upgradeLogs, setUpgradeLogs] = useState<UpgradeLog[]>([])
   const [tab, setTab] = useState<Tab>('clients')
   const [showCreate, setShowCreate] = useState(false)
-  const [form, setForm] = useState({ version_number: '', alembic_head: '', release_notes: '' })
+  const [form, setForm] = useState({ version_number: '', migration_head: '', release_notes: '' })
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
 
@@ -32,16 +32,16 @@ export default function VersionControlPage() {
   useEffect(() => { load() }, [])
 
   const handleCreate = async () => {
-    if (!form.version_number || !form.alembic_head) return
+    if (!form.version_number || !form.migration_head) return
     setBusy(true)
     try {
       await api.createVersion({
         version_number: form.version_number,
-        alembic_head: form.alembic_head,
+        migration_head: form.migration_head,
         release_notes: form.release_notes || undefined,
       })
       setShowCreate(false)
-      setForm({ version_number: '', alembic_head: '', release_notes: '' })
+      setForm({ version_number: '', migration_head: '', release_notes: '' })
       load()
     } catch (e) { setMsg(e instanceof Error ? e.message : 'Failed') }
     setBusy(false)
@@ -96,8 +96,8 @@ export default function VersionControlPage() {
               <input placeholder="e.g. 1.2.0" value={form.version_number} onChange={e => setForm({ ...form, version_number: e.target.value })} style={input()} />
             </div>
             <div>
-              <label style={label()}>Alembic head</label>
-              <input placeholder="e.g. c3d4e5f6g7h8" value={form.alembic_head} onChange={e => setForm({ ...form, alembic_head: e.target.value })} style={{ ...input(), fontFamily: font.mono }} />
+              <label style={label()}>Migration head</label>
+              <input placeholder="e.g. 2026_09_30_000100_create_system_mail_settings_table" value={form.migration_head} onChange={e => setForm({ ...form, migration_head: e.target.value })} style={{ ...input(), fontFamily: font.mono }} />
             </div>
           </div>
           <label style={label()}>Release notes (optional)</label>
@@ -117,7 +117,7 @@ export default function VersionControlPage() {
               <tr>
                 <th style={th()}>Client</th>
                 <th style={th()}>Current Version</th>
-                <th style={th()}>Alembic Head</th>
+                <th style={th()}>Migration Head</th>
                 <th style={th()}>Latest</th>
                 <th style={th()}>Status</th>
                 <th style={th()}>Action</th>
@@ -131,7 +131,7 @@ export default function VersionControlPage() {
                     <span style={{ color: color.textMuted, marginLeft: 8, fontSize: 12 }}>{cv.client_name}</span>
                   </td>
                   <td style={td({ fontWeight: 600 })}>{cv.current_version || '—'}</td>
-                  <td style={td({ fontFamily: font.mono, fontSize: 11, color: color.textMuted })}>{cv.current_alembic_head || '—'}</td>
+                  <td style={td({ fontFamily: font.mono, fontSize: 11, color: color.textMuted })}>{cv.current_migration_head || '—'}</td>
                   <td style={td()}>{cv.latest_version || '—'}</td>
                   <td style={td()}>
                     <span style={badge(cv.is_up_to_date ? 'success' : 'warning')}>{cv.is_up_to_date ? 'Up to date' : 'Update available'}</span>
@@ -158,7 +158,7 @@ export default function VersionControlPage() {
             <thead>
               <tr>
                 <th style={th()}>Version</th>
-                <th style={th()}>Alembic Head</th>
+                <th style={th()}>Migration Head</th>
                 <th style={th()}>Status</th>
                 <th style={th()}>Released</th>
                 <th style={th()}>Notes</th>
@@ -172,7 +172,7 @@ export default function VersionControlPage() {
                     v{v.version_number}
                     {v.is_latest && <span style={{ ...badgeSolid('info'), marginLeft: 8 }}>LATEST</span>}
                   </td>
-                  <td style={td({ fontFamily: font.mono, fontSize: 11, color: color.textMuted })}>{v.alembic_head}</td>
+                  <td style={td({ fontFamily: font.mono, fontSize: 11, color: color.textMuted })}>{v.migration_head}</td>
                   <td style={td()}>
                     <span style={badge(VERSION_STATUS_TONE[v.status] ?? 'neutral')}>{v.status}</span>
                   </td>

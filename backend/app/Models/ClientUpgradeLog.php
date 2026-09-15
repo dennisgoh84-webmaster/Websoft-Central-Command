@@ -12,7 +12,7 @@ class ClientUpgradeLog extends CcModel
     protected $table = 'client_upgrade_logs';
 
     protected $fillable = [
-        'client_id', 'from_version', 'to_version', 'to_alembic_head',
+        'client_id', 'from_version', 'to_version', 'to_migration_head',
         'success', 'error_message', 'upgraded_by',
     ];
 

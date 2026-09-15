@@ -56,7 +56,7 @@ class ClientController extends Controller
 
         foreach ([
             'name', 'db_host', 'db_port', 'db_name', 'db_username', 'db_password',
-            'db_use_tls', 'status', 'notes', 'max_licenses',
+            'db_use_tls', 'status', 'notes', 'max_licenses', 'app_key',
         ] as $field) {
             if ($request->exists($field)) {
                 $client->{$field} = $request->input($field);
@@ -74,7 +74,7 @@ class ClientController extends Controller
 
         if ($result['success']) {
             $client->last_connected_at = Carbon::now();
-            $client->last_known_alembic_head = $result['alembic_head'] ?? null;
+            $client->last_known_migration_head = $result['migration_head'] ?? null;
             $client->save();
         }
 
@@ -108,7 +108,8 @@ class ClientController extends Controller
             'status' => $c->status,
             'max_licenses' => $c->max_licenses,
             'last_connected_at' => $c->last_connected_at?->toISOString(),
-            'last_known_alembic_head' => $c->last_known_alembic_head,
+            'last_known_migration_head' => $c->last_known_migration_head,
+            'app_key_set' => (bool) $c->app_key,
         ];
     }
 
@@ -127,7 +128,11 @@ class ClientController extends Controller
             'notes' => $c->notes,
             'max_licenses' => $c->max_licenses,
             'last_connected_at' => $c->last_connected_at?->toISOString(),
-            'last_known_alembic_head' => $c->last_known_alembic_head,
+            'last_known_migration_head' => $c->last_known_migration_head,
+            // Never the key itself — same treatment as db_password —
+            // just whether one is on file, for the edit form's "leave
+            // blank to keep current" placeholder.
+            'app_key_set' => (bool) $c->app_key,
             'created_at' => $c->created_at?->toISOString(),
             'updated_at' => $c->updated_at?->toISOString(),
         ];

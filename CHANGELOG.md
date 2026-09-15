@@ -7,6 +7,21 @@ merge). Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ## Unreleased
 
 ### Added
+- **System Mail Settings push** (`planned-work.md #8c` in the client ERP
+  repo). New "📧 System Mail" screen: create/edit a system mailbox
+  config per purpose (`otp` sign-in codes, `helpdesk` Outlook Add-in
+  acknowledgements), target clients, push. The password column on the
+  client side is behind that install's own Eloquent `encrypted` cast —
+  a plaintext write would leave a value the client can't decrypt, so
+  clients now carry an `app_key` (their own Laravel `APP_KEY`, never
+  returned by the API) and `ClientDbService::pushSystemMailSetting()`
+  uses Laravel's own `Encrypter` (bundled with `laravel/framework`, no
+  new dependency) to produce ciphertext byte-for-byte identical to what
+  the client's own cast would write. A client with no `app_key` on file
+  gets a clear per-client push error rather than a broken write.
+  Verified round-trip: pushed a password, then independently decrypted
+  the stored ciphertext using only that client's `app_key` and got the
+  original value back.
 - **"About the video URL" panel on the Video Banner tab.** Explains what
   actually matters when picking a promo video: no size/resolution limit
   is enforced (it's a URL the browser streams, not a file this app
@@ -76,6 +91,22 @@ merge). Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
   The backend container now runs php-fpm + nginx instead of uvicorn.
 
 ### Fixed
+- **Schema-version check was reading a table that no longer exists.**
+  The client ERP retired its Python/Alembic backend (2026-09-15) — there
+  is no `alembic_version` table on any client database any more, so
+  every push was one `ClientDbException` away from breaking against an
+  updated client. `ClientDbService` now reads Laravel's own `migrations`
+  table instead (`checkMigrationHead()`), and every `alembic_head` /
+  `alembic_version` reference is renamed to `migration_head` end to end
+  — backend models/controllers, frontend types and labels, a rename +
+  widen migration (`VARCHAR(50)` was sized for Alembic's short hashes;
+  a Laravel migration filename like
+  `2026_09_30_000100_create_system_mail_settings_table` needs more room
+  — caught by an actual write failure during testing, not just by
+  reading the code, and fixed the same migration before it ever shipped).
+  Verified against a client database built with the real updated schema:
+  connection test, and every existing push type (ads, video, license,
+  config), all confirmed working end to end.
 - **Backend Docker image built on the wrong PHP version.** `backend/Dockerfile`
   was pinned to `php:8.3-fpm-bookworm`, but Laravel 13 pulls in Symfony 8
   components that require PHP `>=8.4.1` — a fresh clone couldn't

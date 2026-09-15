@@ -12,7 +12,7 @@ class ErpVersion extends CcModel
     protected $table = 'erp_versions';
 
     protected $fillable = [
-        'version_number', 'alembic_head', 'release_notes', 'status',
+        'version_number', 'migration_head', 'release_notes', 'status',
         'is_latest', 'released_at', 'created_by',
     ];
 

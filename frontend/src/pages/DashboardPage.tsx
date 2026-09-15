@@ -66,7 +66,7 @@ export default function DashboardPage() {
                 <th style={th()}>Code</th>
                 <th style={th()}>Name</th>
                 <th style={th()}>Last Connected</th>
-                <th style={th()}>Alembic Head</th>
+                <th style={th()}>Migration Head</th>
                 <th style={th()}>Login Limit</th>
               </tr>
             </thead>
@@ -78,7 +78,7 @@ export default function DashboardPage() {
                   </td>
                   <td style={td()}>{c.name}</td>
                   <td style={td({ color: color.textMuted })}>{formatDateTime(c.last_connected_at)}</td>
-                  <td style={td({ fontFamily: font.mono, fontSize: 11, color: color.textMuted })}>{c.last_known_alembic_head ?? '—'}</td>
+                  <td style={td({ fontFamily: font.mono, fontSize: 11, color: color.textMuted })}>{c.last_known_migration_head ?? '—'}</td>
                   <td style={td({ color: color.textMuted })}>{c.max_licenses ?? 'Unlimited'}</td>
                 </tr>
               ))}

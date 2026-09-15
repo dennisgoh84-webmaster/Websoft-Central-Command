@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Client;
 use App\Models\PushLog;
+use App\Models\SystemMailSetting;
 use App\Support\ClientDbException;
+use Illuminate\Encryption\Encrypter;
 use Illuminate\Support\Carbon;
 use PDO;
 use PDOException;
@@ -13,9 +15,12 @@ use Throwable;
 /**
  * Client database connector.
  *
- * Connects to a client's PostgreSQL on demand, verifies Alembic version
- * compatibility, and executes push operations (ads, licenses, config).
- * Each connection is short-lived — opened for the push, then closed.
+ * Connects to a client's PostgreSQL on demand, verifies schema
+ * compatibility via Laravel's own `migrations` table (the client ERP
+ * retired Python/Alembic on 2026-09-15 — there is no `alembic_version`
+ * table on any client database any more), and executes push operations
+ * (ads, licenses, config, system mail). Each connection is short-lived —
+ * opened for the push, then closed.
  */
 class ClientDbService
 {
@@ -40,14 +45,13 @@ class ClientDbService
         ]);
     }
 
-    /** Test connectivity + read Alembic version + list companies. */
+    /** Test connectivity + read the current migration head + list companies. */
     public function testConnection(Client $client): array
     {
         try {
             $pdo = $this->connect($client);
 
-            $row = $pdo->query('SELECT version_num FROM alembic_version LIMIT 1')->fetch(PDO::FETCH_NUM);
-            $alembicHead = $row ? $row[0] : null;
+            $migrationHead = $this->readMigrationHead($pdo);
 
             $companies = [];
             $stmt = $pdo->query('SELECT id, name, registration_number FROM companies LIMIT 50');
@@ -58,7 +62,7 @@ class ClientDbService
             return [
                 'success' => true,
                 'message' => 'Connected successfully',
-                'alembic_head' => $alembicHead,
+                'migration_head' => $migrationHead,
                 'companies' => $companies,
             ];
         } catch (Throwable $e) {
@@ -66,15 +70,27 @@ class ClientDbService
         }
     }
 
-    /** Read the Alembic version and check compatibility. Returns the head or throws. */
-    public function checkAlembicVersion(PDO $pdo): string
+    /**
+     * Read the client's latest applied Laravel migration, without
+     * requiring one to exist — returns null on an otherwise-reachable
+     * database that just hasn't been migrated yet, rather than throwing.
+     */
+    private function readMigrationHead(PDO $pdo): ?string
     {
-        $row = $pdo->query('SELECT version_num FROM alembic_version LIMIT 1')->fetch(PDO::FETCH_NUM);
-        if (! $row) {
-            throw new ClientDbException('No alembic_version found in client DB');
+        $row = $pdo->query('SELECT migration FROM migrations ORDER BY batch DESC, id DESC LIMIT 1')->fetch(PDO::FETCH_NUM);
+
+        return $row ? $row[0] : null;
+    }
+
+    /** Check schema compatibility before writing. Returns the migration head or throws. */
+    public function checkMigrationHead(PDO $pdo): string
+    {
+        $head = $this->readMigrationHead($pdo);
+        if ($head === null) {
+            throw new ClientDbException('No migrations table found in client DB (or it is empty) — cannot verify schema compatibility before writing');
         }
 
-        return $row[0];
+        return $head;
     }
 
     /** Record a push attempt in Central Command's push_logs. */
@@ -100,7 +116,7 @@ class ClientDbService
     {
         try {
             $pdo = $this->connect($client);
-            $alembicHead = $this->checkAlembicVersion($pdo);
+            $migrationHead = $this->checkMigrationHead($pdo);
 
             $pdo->beginTransaction();
             $stmt = $pdo->prepare(<<<'SQL'
@@ -124,7 +140,7 @@ class ClientDbService
             $pdo->commit();
 
             $client->last_connected_at = Carbon::now();
-            $client->last_known_alembic_head = $alembicHead;
+            $client->last_known_migration_head = $migrationHead;
             $client->save();
 
             $this->logPush($client, 'advertisement', 'Pushed '.count($announcements).' announcement(s)', true, pushedBy: $adminId);
@@ -141,7 +157,7 @@ class ClientDbService
     {
         try {
             $pdo = $this->connect($client);
-            $this->checkAlembicVersion($pdo);
+            $this->checkMigrationHead($pdo);
 
             $stmt = $pdo->prepare(<<<'SQL'
                 UPDATE ad_banner_settings
@@ -175,7 +191,7 @@ class ClientDbService
     ): array {
         try {
             $pdo = $this->connect($client);
-            $this->checkAlembicVersion($pdo);
+            $this->checkMigrationHead($pdo);
 
             $check = $pdo->prepare('SELECT key FROM modules WHERE key = :key');
             $check->execute(['key' => $moduleKey]);
@@ -223,7 +239,7 @@ class ClientDbService
     {
         try {
             $pdo = $this->connect($client);
-            $this->checkAlembicVersion($pdo);
+            $this->checkMigrationHead($pdo);
 
             $stmt = $pdo->prepare($sqlStatement);
             $stmt->execute();
@@ -252,7 +268,7 @@ class ClientDbService
     {
         try {
             $pdo = $this->connect($client);
-            $this->checkAlembicVersion($pdo);
+            $this->checkMigrationHead($pdo);
 
             $pdo->exec(<<<'SQL'
                 CREATE TABLE IF NOT EXISTS license_settings (
@@ -283,6 +299,93 @@ class ClientDbService
             $this->logPush($client, 'license', 'Push license limit failed', false, $e->getMessage(), $adminId);
             throw new ClientDbException($e->getMessage(), 0, $e);
         }
+    }
+
+    /**
+     * Push one system mailbox (`otp` or `helpdesk`) into a client's
+     * `system_mail_settings` table (UPSERT keyed on `purpose`).
+     *
+     * The password column there is behind that client's own Eloquent
+     * `encrypted` cast — a plain-text write would leave a value the
+     * client's app cannot decrypt, breaking OTP/helpdesk mail silently.
+     * `encryptForClient()` reproduces Laravel's own encryption using
+     * that client's stored `app_key`, so the ciphertext is exactly what
+     * its own `SystemMailSetting::password` cast would have produced.
+     * Requires `client.app_key` to be set — refuses with a clear error
+     * otherwise rather than writing a password the client can't read.
+     *
+     * An empty password on the Central Command side is pushed as NULL
+     * and the client's existing password (if any) is left untouched —
+     * mirrors the "leave blank to keep current" pattern used for
+     * db_password, so re-pushing other fields never clears it.
+     */
+    public function pushSystemMailSetting(Client $client, SystemMailSetting $setting, ?string $adminId = null): array
+    {
+        try {
+            if (! $client->app_key) {
+                throw new ClientDbException(
+                    "Client '{$client->code}' has no APP_KEY on file — cannot encrypt the mailbox password ".
+                    'compatibly with that install. Set it under that client\'s Details tab before pushing.'
+                );
+            }
+
+            $pdo = $this->connect($client);
+            $this->checkMigrationHead($pdo);
+
+            $encryptedPassword = ($setting->password !== null && $setting->password !== '')
+                ? $this->encryptForClient($client->app_key, $setting->password)
+                : null;
+
+            $stmt = $pdo->prepare(<<<'SQL'
+                INSERT INTO system_mail_settings (purpose, host, port, username, password, use_tls, from_email, from_name, updated_at)
+                VALUES (:purpose, :host, :port, :username, :password, :use_tls, :from_email, :from_name, NOW())
+                ON CONFLICT (purpose) DO UPDATE SET
+                    host = EXCLUDED.host,
+                    port = EXCLUDED.port,
+                    username = EXCLUDED.username,
+                    password = COALESCE(EXCLUDED.password, system_mail_settings.password),
+                    use_tls = EXCLUDED.use_tls,
+                    from_email = EXCLUDED.from_email,
+                    from_name = EXCLUDED.from_name,
+                    updated_at = NOW()
+            SQL);
+            $stmt->execute([
+                'purpose' => $setting->purpose,
+                'host' => $setting->host,
+                'port' => $setting->port,
+                'username' => $setting->username,
+                'password' => $encryptedPassword,
+                'use_tls' => $setting->use_tls ? 't' : 'f',
+                'from_email' => $setting->from_email,
+                'from_name' => $setting->from_name,
+            ]);
+
+            $client->last_connected_at = Carbon::now();
+            $client->save();
+
+            $this->logPush($client, 'system_mail', "Pushed '{$setting->purpose}' mail settings ({$setting->label})", true, pushedBy: $adminId);
+
+            return ['success' => true];
+        } catch (Throwable $e) {
+            $this->logPush($client, 'system_mail', 'Push failed', false, $e->getMessage(), $adminId);
+            throw new ClientDbException($e->getMessage(), 0, $e);
+        }
+    }
+
+    /**
+     * Encrypt a value the way that client's own Eloquent `encrypted`
+     * cast would (`Crypt::encryptString()`), using ITS `APP_KEY` — not
+     * Central Command's own. Both apps are Laravel, so the exact same
+     * `Encrypter` class (bundled with laravel/framework) reproduces the
+     * client's own cast byte for byte; the client's later `->password`
+     * read decrypts it transparently, same as if its own app had
+     * written the row.
+     */
+    private function encryptForClient(string $appKey, string $value): string
+    {
+        $raw = str_starts_with($appKey, 'base64:') ? base64_decode(substr($appKey, 7)) : $appKey;
+
+        return (new Encrypter($raw, 'aes-256-cbc'))->encryptString($value);
     }
 
     /** Read modules + company_modules from a client DB for the license overview. */

@@ -51,7 +51,8 @@ export interface Client {
   status: string
   notes: string | null
   last_connected_at: string | null
-  last_known_alembic_head: string | null
+  last_known_migration_head: string | null
+  app_key_set: boolean
   created_at: string
   updated_at: string
 }
@@ -63,13 +64,14 @@ export interface ClientSummary {
   status: string
   max_licenses: number | null
   last_connected_at: string | null
-  last_known_alembic_head: string | null
+  last_known_migration_head: string | null
+  app_key_set: boolean
 }
 
 export interface ConnectionTestResult {
   success: boolean
   message: string
-  alembic_head: string | null
+  migration_head: string | null
   companies: { id: string; name: string; registration_number: string | null }[] | null
 }
 
@@ -88,6 +90,23 @@ export interface VideoSetting {
   video_url: string | null
   label: string
   is_active: boolean
+  created_at: string
+  assignments: { client_id: string; pushed_at: string | null }[]
+}
+
+export type MailPurpose = 'otp' | 'helpdesk'
+
+export interface SystemMailSetting {
+  id: string
+  purpose: MailPurpose
+  label: string
+  host: string | null
+  port: number
+  username: string | null
+  password_set: boolean
+  use_tls: boolean
+  from_email: string | null
+  from_name: string | null
   created_at: string
   assignments: { client_id: string; pushed_at: string | null }[]
 }
@@ -151,7 +170,7 @@ export interface PushResult {
 export interface ERPVersion {
   id: string
   version_number: string
-  alembic_head: string
+  migration_head: string
   release_notes: string | null
   status: string
   is_latest: boolean
@@ -163,7 +182,7 @@ export interface ClientVersionInfo {
   client_id: string
   client_name: string
   client_code: string
-  current_alembic_head: string | null
+  current_migration_head: string | null
   current_version: string | null
   latest_version: string | null
   is_up_to_date: boolean
@@ -175,7 +194,7 @@ export interface UpgradeLog {
   client_id: string
   from_version: string | null
   to_version: string
-  to_alembic_head: string
+  to_migration_head: string
   success: boolean
   error_message: string | null
   upgraded_at: string
@@ -324,7 +343,7 @@ export const api = {
 
   // Version Control
   listVersions: () => request<ERPVersion[]>('/versions/'),
-  createVersion: (data: { version_number: string; alembic_head: string; release_notes?: string }) =>
+  createVersion: (data: { version_number: string; migration_head: string; release_notes?: string }) =>
     request<ERPVersion>('/versions/', { method: 'POST', body: JSON.stringify(data) }),
   updateVersion: (id: string, data: Partial<ERPVersion>) =>
     request<ERPVersion>(`/versions/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
@@ -338,6 +357,21 @@ export const api = {
     }),
   getUpgradeLogs: (clientId?: string) =>
     request<UpgradeLog[]>(`/versions/upgrade-logs${clientId ? `?client_id=${clientId}` : ''}`),
+
+  // System Mail Settings
+  listSystemMail: () => request<SystemMailSetting[]>('/system-mail/'),
+  createSystemMail: (data: {
+    purpose: MailPurpose; label: string; host?: string; port?: number; username?: string
+    password?: string; use_tls?: boolean; from_email?: string; from_name?: string; client_ids?: string[]
+  }) => request<SystemMailSetting>('/system-mail/', { method: 'POST', body: JSON.stringify(data) }),
+  updateSystemMail: (id: string, data: Partial<{
+    label: string; host: string; port: number; username: string; password: string
+    use_tls: boolean; from_email: string; from_name: string; client_ids: string[]
+  }>) => request<SystemMailSetting>(`/system-mail/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteSystemMail: (id: string) =>
+    request<void>(`/system-mail/${id}`, { method: 'DELETE' }),
+  pushSystemMail: (id: string) =>
+    request<PushResult>(`/system-mail/${id}/push`, { method: 'POST' }),
 
   // Staff Management
   listStaff: () => request<AdminUser[]>('/staff/'),
