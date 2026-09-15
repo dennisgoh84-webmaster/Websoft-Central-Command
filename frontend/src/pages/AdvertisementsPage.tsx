@@ -237,11 +237,36 @@ function VideoBannerTab({
 
   return (
     <div>
-      <p style={{ fontSize: 12.5, color: color.textMuted, margin: '0 0 16px', maxWidth: 640 }}>
+      <p style={{ fontSize: 12.5, color: color.textMuted, margin: '0 0 14px', maxWidth: 640 }}>
         Sets the promo video URL shown on each client's login/dashboard banner
         (writes to their <code style={{ fontFamily: font.mono }}>ad_banner_settings</code> table). Only the
         most recently pushed video per client takes effect there.
       </p>
+
+      <div style={{ background: color.infoSoft, border: `1px solid ${color.info}22`, borderRadius: 8, padding: '12px 16px', marginBottom: 20, maxWidth: 640 }}>
+        <p style={{ margin: '0 0 8px', fontSize: 12.5, fontWeight: 600, color: color.info }}>ℹ️ About the video URL</p>
+        <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: color.text, lineHeight: 1.7 }}>
+          <li>
+            <strong>No size or resolution limit is enforced.</strong> It's a URL the viewer's browser
+            streams directly — not a file uploaded to this app — so Central Command never sees or checks it.
+          </li>
+          <li>
+            It plays <strong>muted and looped in a narrow column</strong> — 220px wide on the Login page,
+            150px on every other page — so 720p is more than enough; anything larger just costs bandwidth
+            on every page load. A short loop of a few MB is the sweet spot.
+          </li>
+          <li>
+            <strong>Must be a direct <code style={{ fontFamily: font.mono }}>.mp4</code> (H.264) or{' '}
+            <code style={{ fontFamily: font.mono }}>.webm</code> link</strong> — one that plays when pasted
+            straight into a browser tab.
+          </li>
+          <li>
+            A YouTube, Vimeo, or Google Drive <em>page</em> link won't play — the panel quietly hides the
+            video rather than showing an error, so a bad link can go unnoticed until someone checks the
+            client's banner.
+          </li>
+        </ul>
+      </div>
 
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
         <button onClick={() => setShowForm(!showForm)} className="btn" style={button('primary')}>

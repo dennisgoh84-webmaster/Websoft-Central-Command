@@ -7,6 +7,14 @@ merge). Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ## Unreleased
 
 ### Added
+- **"About the video URL" panel on the Video Banner tab.** Explains what
+  actually matters when picking a promo video: no size/resolution limit
+  is enforced (it's a URL the browser streams, not a file this app
+  sees); it renders muted and looped at 220px (Login) / 150px
+  (elsewhere), so 720p and a few MB is the sweet spot; it must be a
+  direct `.mp4`/`.webm` link that plays when pasted into a browser tab
+  — a YouTube/Vimeo/Drive page link silently hides the video instead of
+  erroring, which is exactly the failure mode this panel heads off.
 - **View/edit on the Client Details tab.** Connection Details (Host,
   Port, Database, Username, Password, TLS) and Information (Client
   Name, Notes) were view-only after a client was created — the only
