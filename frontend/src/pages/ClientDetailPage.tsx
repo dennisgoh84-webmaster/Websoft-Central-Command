@@ -2,7 +2,31 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { api, type Client, type ClientSummary, type ConnectionTestResult, type ClientModule } from '../lib/api'
 import { formatDateTime } from '../lib/format'
-import { alert, badge, button, card, color, dismissButton, font, h2, input, radius, tabUnderline, table, td, th, type Tone } from '../lib/theme'
+import { alert, badge, button, card, color, dismissButton, font, h2, input, label as fieldLabel, radius, tabUnderline, table, td, th, type Tone } from '../lib/theme'
+
+type EditForm = {
+  name: string
+  db_host: string
+  db_port: number
+  db_name: string
+  db_username: string
+  db_password: string
+  db_use_tls: boolean
+  notes: string
+}
+
+function toEditForm(c: Client): EditForm {
+  return {
+    name: c.name,
+    db_host: c.db_host,
+    db_port: c.db_port,
+    db_name: c.db_name,
+    db_username: c.db_username,
+    db_password: '', // never returned by the API — blank means "keep current"
+    db_use_tls: c.db_use_tls,
+    notes: c.notes ?? '',
+  }
+}
 
 type Tab = 'details' | 'modules' | 'licenses'
 
@@ -16,6 +40,12 @@ export default function ClientDetailPage() {
   const [testing, setTesting] = useState(false)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<Tab>('details')
+
+  // Details edit state
+  const [editing, setEditing] = useState(false)
+  const [editForm, setEditForm] = useState<EditForm | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState('')
 
   // Module state
   const [modules, setModules] = useState<ClientModule[]>([])
@@ -73,6 +103,42 @@ export default function ClientDetailPage() {
     if (!id) return
     await api.updateClient(id, { status: 'active' } as Partial<Client>)
     api.getClient(id).then(setClient)
+  }
+
+  function startEditing() {
+    if (!client) return
+    setEditForm(toEditForm(client))
+    setSaveMsg('')
+    setError('')
+    setEditing(true)
+  }
+
+  async function saveDetails() {
+    if (!id || !editForm) return
+    if (!editForm.name.trim()) {
+      setError('Client name is required')
+      return
+    }
+    setSaving(true)
+    setError('')
+    try {
+      // Only send db_password if the admin actually typed a new one —
+      // the API never returns the current one, so an empty field here
+      // means "leave it as is", not "clear the password".
+      const { db_password, ...rest } = editForm
+      const payload: Partial<Client> & { db_password?: string } = { ...rest }
+      if (db_password.trim() !== '') {
+        payload.db_password = db_password
+      }
+      const updated = await api.updateClient(id, payload)
+      setClient(updated)
+      setEditing(false)
+      setSaveMsg('Client details updated')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update')
+    } finally {
+      setSaving(false)
+    }
   }
 
   // ── Module functions ─────────────────────────────────────────────
@@ -208,67 +274,153 @@ export default function ClientDetailPage() {
           <button onClick={() => setError('')} style={dismissButton()}>✕</button>
         </div>
       )}
+      {saveMsg && (
+        <div style={alert('success')}>
+          <span>{saveMsg}</span>
+          <button onClick={() => setSaveMsg('')} style={dismissButton()}>✕</button>
+        </div>
+      )}
 
       {/* ── Details Tab ──────────────────────────────────────────── */}
       {tab === 'details' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-          {/* Connection Details */}
-          <div style={card({ padding: 22 })}>
-            <h2 style={{ ...h2(), color: color.brand, marginBottom: 14 }}>Connection Details</h2>
-            <table style={{ fontSize: 13 }}>
-              <tbody>
-                <tr><td style={infoRow}>Host</td><td style={infoVal}>{client.db_host}</td></tr>
-                <tr><td style={infoRow}>Port</td><td style={infoVal}>{client.db_port}</td></tr>
-                <tr><td style={infoRow}>Database</td><td style={infoVal}>{client.db_name}</td></tr>
-                <tr><td style={infoRow}>Username</td><td style={infoVal}>{client.db_username}</td></tr>
-                <tr><td style={infoRow}>TLS</td><td style={infoVal}>{client.db_use_tls ? 'Yes' : 'No'}</td></tr>
-              </tbody>
-            </table>
-
-            <button onClick={onTest} disabled={testing} className="btn" style={{ ...button('secondary', 'sm'), marginTop: 6, background: color.infoSoft, color: color.info }}>
-              {testing ? 'Testing…' : 'Test Connection'}
-            </button>
-
-            {testResult && (
-              <div style={{
-                marginTop: 14, padding: 14, borderRadius: radius.md,
-                background: testResult.success ? color.successSoft : color.dangerSoft,
-                border: `1px solid ${testResult.success ? '#b6e5c7' : '#f3c6c1'}`,
-                fontSize: 12.5, color: color.text,
-              }}>
-                <strong style={{ color: testResult.success ? color.success : color.danger }}>{testResult.success ? '✅ Connected' : '❌ Failed'}</strong>
-                <p style={{ margin: '5px 0 0' }}>{testResult.message}</p>
-                {testResult.alembic_head && <p style={{ margin: '3px 0 0' }}>Alembic head: <code style={{ fontFamily: font.mono }}>{testResult.alembic_head}</code></p>}
-                {testResult.companies && (
-                  <div style={{ marginTop: 8 }}>
-                    <strong>Companies ({testResult.companies.length}):</strong>
-                    <ul style={{ margin: '5px 0 0', paddingLeft: 18 }}>
-                      {testResult.companies.map((c) => (
-                        <li key={c.id}>{c.name} {c.registration_number && `(${c.registration_number})`}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+            {!editing ? (
+              <button onClick={startEditing} className="btn" style={{ ...button('secondary', 'sm'), background: color.infoSoft, color: color.info }}>
+                ✏️ Edit Details
+              </button>
+            ) : (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={saveDetails} disabled={saving} className="btn" style={button('primary', 'sm')}>
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button onClick={() => { setEditing(false); setError('') }} className="btn" style={button('secondary', 'sm')}>
+                  Cancel
+                </button>
               </div>
             )}
           </div>
 
-          {/* Info */}
-          <div style={card({ padding: 22 })}>
-            <h2 style={{ ...h2(), color: color.brand, marginBottom: 14 }}>Information</h2>
-            <table style={{ fontSize: 13 }}>
-              <tbody>
-                <tr><td style={infoRow}>Last Connected</td><td style={infoVal}>{formatDateTime(client.last_connected_at)}</td></tr>
-                <tr><td style={infoRow}>Alembic Head</td><td style={{ ...infoVal, fontFamily: font.mono, fontSize: 11 }}>{client.last_known_alembic_head ?? '—'}</td></tr>
-                <tr><td style={infoRow}>Created</td><td style={infoVal}>{formatDateTime(client.created_at)}</td></tr>
-                <tr><td style={infoRow}>Updated</td><td style={infoVal}>{formatDateTime(client.updated_at)}</td></tr>
-              </tbody>
-            </table>
-            {client.notes && (
-              <div style={{ marginTop: 14, padding: 12, background: color.page, borderRadius: radius.sm, fontSize: 12.5, color: color.text, border: `1px solid ${color.border}` }}>
-                <strong>Notes:</strong> {client.notes}
-              </div>
-            )}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            {/* Connection Details */}
+            <div style={card({ padding: 22 })}>
+              <h2 style={{ ...h2(), color: color.brand, marginBottom: 14 }}>Connection Details</h2>
+
+              {!editing || !editForm ? (
+                <table style={{ fontSize: 13 }}>
+                  <tbody>
+                    <tr><td style={infoRow}>Host</td><td style={infoVal}>{client.db_host}</td></tr>
+                    <tr><td style={infoRow}>Port</td><td style={infoVal}>{client.db_port}</td></tr>
+                    <tr><td style={infoRow}>Database</td><td style={infoVal}>{client.db_name}</td></tr>
+                    <tr><td style={infoRow}>Username</td><td style={infoVal}>{client.db_username}</td></tr>
+                    <tr><td style={infoRow}>TLS</td><td style={infoVal}>{client.db_use_tls ? 'Yes' : 'No'}</td></tr>
+                  </tbody>
+                </table>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <div>
+                    <label style={fieldLabel()}>Host</label>
+                    <input value={editForm.db_host} onChange={(e) => setEditForm({ ...editForm, db_host: e.target.value })} style={input()} />
+                  </div>
+                  <div>
+                    <label style={fieldLabel()}>Port</label>
+                    <input type="number" value={editForm.db_port} onChange={(e) => setEditForm({ ...editForm, db_port: parseInt(e.target.value) || 0 })} style={input()} />
+                  </div>
+                  <div>
+                    <label style={fieldLabel()}>Database</label>
+                    <input value={editForm.db_name} onChange={(e) => setEditForm({ ...editForm, db_name: e.target.value })} style={input()} />
+                  </div>
+                  <div>
+                    <label style={fieldLabel()}>Username</label>
+                    <input value={editForm.db_username} onChange={(e) => setEditForm({ ...editForm, db_username: e.target.value })} style={input()} />
+                  </div>
+                  <div>
+                    <label style={fieldLabel()}>Password</label>
+                    <input
+                      type="password"
+                      value={editForm.db_password}
+                      onChange={(e) => setEditForm({ ...editForm, db_password: e.target.value })}
+                      placeholder="•••••••• (leave blank to keep current)"
+                      style={input()}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input id="edit-tls" type="checkbox" checked={editForm.db_use_tls} onChange={(e) => setEditForm({ ...editForm, db_use_tls: e.target.checked })} />
+                    <label htmlFor="edit-tls" style={{ fontSize: 13, fontWeight: 500, color: color.text, fontFamily: font.sans, cursor: 'pointer' }}>Use TLS</label>
+                  </div>
+                </div>
+              )}
+
+              {!editing && (
+                <button onClick={onTest} disabled={testing} className="btn" style={{ ...button('secondary', 'sm'), marginTop: 14, background: color.infoSoft, color: color.info }}>
+                  {testing ? 'Testing…' : 'Test Connection'}
+                </button>
+              )}
+
+              {testResult && !editing && (
+                <div style={{
+                  marginTop: 14, padding: 14, borderRadius: radius.md,
+                  background: testResult.success ? color.successSoft : color.dangerSoft,
+                  border: `1px solid ${testResult.success ? '#b6e5c7' : '#f3c6c1'}`,
+                  fontSize: 12.5, color: color.text,
+                }}>
+                  <strong style={{ color: testResult.success ? color.success : color.danger }}>{testResult.success ? '✅ Connected' : '❌ Failed'}</strong>
+                  <p style={{ margin: '5px 0 0' }}>{testResult.message}</p>
+                  {testResult.alembic_head && <p style={{ margin: '3px 0 0' }}>Alembic head: <code style={{ fontFamily: font.mono }}>{testResult.alembic_head}</code></p>}
+                  {testResult.companies && (
+                    <div style={{ marginTop: 8 }}>
+                      <strong>Companies ({testResult.companies.length}):</strong>
+                      <ul style={{ margin: '5px 0 0', paddingLeft: 18 }}>
+                        {testResult.companies.map((c) => (
+                          <li key={c.id}>{c.name} {c.registration_number && `(${c.registration_number})`}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Info */}
+            <div style={card({ padding: 22 })}>
+              <h2 style={{ ...h2(), color: color.brand, marginBottom: 14 }}>Information</h2>
+
+              {editing && editForm && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={fieldLabel()}>Client Name</label>
+                  <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} style={input()} />
+                </div>
+              )}
+
+              <table style={{ fontSize: 13 }}>
+                <tbody>
+                  <tr><td style={infoRow}>Last Connected</td><td style={infoVal}>{formatDateTime(client.last_connected_at)}</td></tr>
+                  <tr><td style={infoRow}>Alembic Head</td><td style={{ ...infoVal, fontFamily: font.mono, fontSize: 11 }}>{client.last_known_alembic_head ?? '—'}</td></tr>
+                  <tr><td style={infoRow}>Created</td><td style={infoVal}>{formatDateTime(client.created_at)}</td></tr>
+                  <tr><td style={infoRow}>Updated</td><td style={infoVal}>{formatDateTime(client.updated_at)}</td></tr>
+                </tbody>
+              </table>
+
+              {!editing ? (
+                client.notes && (
+                  <div style={{ marginTop: 14, padding: 12, background: color.page, borderRadius: radius.sm, fontSize: 12.5, color: color.text, border: `1px solid ${color.border}` }}>
+                    <strong>Notes:</strong> {client.notes}
+                  </div>
+                )
+              ) : (
+                editForm && (
+                  <div style={{ marginTop: 14 }}>
+                    <label style={fieldLabel()}>Notes</label>
+                    <textarea
+                      value={editForm.notes}
+                      onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+                      rows={3}
+                      style={{ ...input(), resize: 'vertical' }}
+                    />
+                  </div>
+                )
+              )}
+            </div>
           </div>
         </div>
       )}

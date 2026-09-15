@@ -7,6 +7,18 @@ merge). Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ## Unreleased
 
 ### Added
+- **View/edit on the Client Details tab.** Connection Details (Host,
+  Port, Database, Username, Password, TLS) and Information (Client
+  Name, Notes) were view-only after a client was created — the only
+  way to fix a typo or rotate a password was to delete and re-add the
+  client. Added an "✏️ Edit Details" toggle matching the pattern
+  already used for Staff: an editable form in place of the read-only
+  tables, Save/Cancel, and a password field that always starts blank
+  (the API never returns the stored password) — leaving it blank on
+  save keeps the current password, only typing a new one changes it.
+  Verified both paths directly against the database: changing Host/
+  Port/Notes/Password updates exactly those columns, and a follow-up
+  save with the password field left blank leaves it untouched.
 - **"Same server" helper on New Client.** A checkbox on the Add Client
   form that fills in Host (`localhost`) and a starting Port, and turns
   off TLS by default (same-host Postgres rarely has it configured). DB
