@@ -16,6 +16,7 @@ export default function SystemMailPage() {
   const [settings, setSettings] = useState<SystemMailSetting[]>([])
   const [clients, setClients] = useState<ClientSummary[]>([])
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [error, setError] = useState('')
   const [pushResult, setPushResult] = useState<PushResult | null>(null)
@@ -29,20 +30,54 @@ export default function SystemMailPage() {
   const clientName = (id: string) => clients.find((c) => c.id === id)?.name ?? id.slice(0, 8)
   const clientsMissingAppKey = (ids: string[]) => ids.filter((id) => !clients.find((c) => c.id === id)?.app_key_set)
 
-  async function onCreate(e: FormEvent) {
+  function onClickNew() {
+    setEditingId(null)
+    setForm(EMPTY_FORM)
+    setShowForm(true)
+  }
+
+  function onClickEdit(s: SystemMailSetting) {
+    setEditingId(s.id)
+    setForm({
+      purpose: s.purpose,
+      label: s.label,
+      host: s.host ?? '',
+      port: s.port,
+      username: s.username ?? '',
+      password: '',
+      use_tls: s.use_tls,
+      from_email: s.from_email ?? '',
+      from_name: s.from_name ?? '',
+      client_ids: s.assignments.map((a) => a.client_id),
+    })
+    setShowForm(true)
+  }
+
+  function onCancel() {
+    setShowForm(false)
+    setEditingId(null)
+    setForm(EMPTY_FORM)
+  }
+
+  async function onSubmit(e: FormEvent) {
     e.preventDefault()
     setError('')
     try {
-      await api.createSystemMail({
-        ...form,
+      const { purpose, ...rest } = form
+      const payload = {
+        ...rest,
         host: form.host || undefined,
         username: form.username || undefined,
         password: form.password || undefined,
         from_email: form.from_email || undefined,
         from_name: form.from_name || undefined,
-      })
-      setShowForm(false)
-      setForm(EMPTY_FORM)
+      }
+      if (editingId) {
+        await api.updateSystemMail(editingId, payload)
+      } else {
+        await api.createSystemMail({ ...payload, purpose })
+      }
+      onCancel()
       refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed')
@@ -77,7 +112,7 @@ export default function SystemMailPage() {
     <div>
       <div style={pageHeader()}>
         <h1 style={h1()}>📧 System Mail</h1>
-        <button onClick={() => setShowForm(!showForm)} className="btn" style={button('primary')}>
+        <button onClick={showForm ? onCancel : onClickNew} className="btn" style={button('primary')}>
           {showForm ? 'Cancel' : '+ New Mailbox'}
         </button>
       </div>
@@ -124,11 +159,20 @@ export default function SystemMailPage() {
 
       {showForm && (
         <div style={card({ padding: 22, marginBottom: 20 })}>
-          <form onSubmit={onCreate}>
+          <h2 style={{ margin: '0 0 14px', fontSize: 15, fontFamily: font.sans, color: color.text }}>
+            {editingId ? 'Edit mailbox' : 'New mailbox'}
+          </h2>
+          <form onSubmit={onSubmit}>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: 14, marginBottom: 14 }}>
               <div>
                 <label style={fieldLabel()}>Purpose</label>
-                <select value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value as MailPurpose })} style={input()}>
+                <select
+                  value={form.purpose}
+                  onChange={(e) => setForm({ ...form, purpose: e.target.value as MailPurpose })}
+                  style={input()}
+                  disabled={!!editingId}
+                  title={editingId ? "Purpose can't be changed after creation -- delete and recreate instead" : undefined}
+                >
                   <option value="otp">Sign-in / OTP</option>
                   <option value="helpdesk">Helpdesk (Outlook Add-in)</option>
                 </select>
@@ -154,8 +198,17 @@ export default function SystemMailPage() {
                 <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} style={input()} />
               </div>
               <div>
-                <label style={fieldLabel()}>Password</label>
-                <input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} style={input()} />
+                <label style={fieldLabel()}>
+                  Password
+                  {editingId && settings.find((s) => s.id === editingId)?.password_set && ' (one is on file -- leave blank to keep it)'}
+                </label>
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  style={input()}
+                  placeholder={editingId && settings.find((s) => s.id === editingId)?.password_set ? '********' : undefined}
+                />
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
@@ -178,7 +231,9 @@ export default function SystemMailPage() {
                 ⚠️ No APP_KEY on file yet for: {clientsMissingAppKey(form.client_ids).map(clientName).join(', ')} — the password won't push to {clientsMissingAppKey(form.client_ids).length === 1 ? 'it' : 'them'} until set.
               </p>
             )}
-            <button type="submit" className="btn" style={{ ...button('primary'), marginTop: 14 }}>Create</button>
+            <button type="submit" className="btn" style={{ ...button('primary'), marginTop: 14 }}>
+              {editingId ? 'Save changes' : 'Create'}
+            </button>
           </form>
         </div>
       )}
@@ -211,6 +266,7 @@ export default function SystemMailPage() {
                 <td style={td({ color: color.textMuted })}>{formatDateTime(s.created_at)}</td>
                 <td style={td()}>
                   <div style={{ display: 'flex', gap: 6 }}>
+                    <button onClick={() => onClickEdit(s)} className="btn" style={button('secondary', 'sm')}>Edit</button>
                     <button onClick={() => onPush(s.id)} className="btn" style={button('success', 'sm')}>Push</button>
                     <button onClick={() => onDelete(s.id)} className="btn" style={button('danger', 'sm')}>Delete</button>
                   </div>
