@@ -166,24 +166,50 @@ class ClientDbService
         }
     }
 
-    /** Update the ad_banner_settings singleton row in a client DB. */
-    public function pushVideoUrl(Client $client, ?string $videoUrl, ?string $adminId = null): array
+    /** The two independent ad_banner_settings rows a client DB carries since it split the promo video 2026-09-16 (websoft-service-erp). */
+    private const VIDEO_SLOTS = ['login', 'app'];
+
+    /**
+     * Update one slot's row in ad_banner_settings on a client DB --
+     * `login` is the client's Login page, `app` is its in-app banner
+     * shown alongside the sidebar. Split 2026-09-16 at Dennis's direct
+     * request ("this settings should be available from central command
+     * to push out also") to mirror the client ERP's own two-slot video
+     * setting (App\Models\AdBannerSettings there).
+     *
+     * A push is necessarily URL-only -- there is no mechanism here to
+     * transfer an uploaded file's bytes to a remote client's server,
+     * only to write a row into its database -- so this also clears
+     * whatever the client had uploaded locally for that slot, the same
+     * way the client's own local settings endpoint supersedes an
+     * upload when a URL is saved.
+     */
+    public function pushVideoUrl(Client $client, string $slot, ?string $videoUrl, ?string $adminId = null): array
     {
+        if (! in_array($slot, self::VIDEO_SLOTS, true)) {
+            throw new ClientDbException("Unknown ad banner slot '{$slot}'");
+        }
+
         try {
             $pdo = $this->connect($client);
             $this->checkMigrationHead($pdo);
 
             $stmt = $pdo->prepare(<<<'SQL'
                 UPDATE ad_banner_settings
-                SET video_url = :video_url, updated_at = NOW()
-                WHERE id = 1
+                SET video_url = :video_url,
+                    video_stored_filename = NULL,
+                    video_original_filename = NULL,
+                    video_content_type = NULL,
+                    video_file_size_bytes = NULL,
+                    updated_at = NOW()
+                WHERE slot = :slot
             SQL);
-            $stmt->execute(['video_url' => $videoUrl]);
+            $stmt->execute(['video_url' => $videoUrl, 'slot' => $slot]);
 
             $client->last_connected_at = Carbon::now();
             $client->save();
 
-            $detail = 'Set video_url='.($videoUrl ? substr($videoUrl, 0, 80) : '(cleared)');
+            $detail = "slot={$slot} video_url=".($videoUrl ? substr($videoUrl, 0, 80) : '(cleared)');
             $this->logPush($client, 'video', $detail, true, pushedBy: $adminId);
 
             return ['success' => true];

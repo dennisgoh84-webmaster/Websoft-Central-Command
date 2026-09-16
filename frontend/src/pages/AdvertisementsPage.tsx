@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { api, type Advertisement, type ClientSummary, type PushResult, type VideoSetting } from '../lib/api'
+import { api, type Advertisement, type ClientSummary, type PushResult, type VideoSetting, type VideoSlot } from '../lib/api'
 import { formatDateTime } from '../lib/format'
 import { alert, badge, button, card, color, dismissButton, font, h1, input, label as fieldLabel, pageHeader, tabPill, table, td, th } from '../lib/theme'
 import { ClientPicker, TargetChips } from '../components/ClientTargeting'
@@ -204,7 +204,7 @@ function VideoBannerTab({
   refresh: () => void
 }) {
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ video_url: '', label: 'Default', client_ids: [] as string[] })
+  const [form, setForm] = useState({ video_url: '', label: 'Default', slot: 'login' as VideoSlot, client_ids: [] as string[] })
 
   async function onCreate(e: FormEvent) {
     e.preventDefault()
@@ -212,7 +212,7 @@ function VideoBannerTab({
     try {
       await api.createVideo(form)
       setShowForm(false)
-      setForm({ video_url: '', label: 'Default', client_ids: [] })
+      setForm({ video_url: '', label: 'Default', slot: 'login', client_ids: [] })
       refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed')
@@ -239,9 +239,12 @@ function VideoBannerTab({
   return (
     <div>
       <p style={{ fontSize: 12.5, color: color.textMuted, margin: '0 0 14px', maxWidth: 640 }}>
-        Sets the promo video URL shown on each client's login/dashboard banner
-        (writes to their <code style={{ fontFamily: font.mono }}>ad_banner_settings</code> table). Only the
-        most recently pushed video per client takes effect there.
+        Sets the promo video URL shown on each client's Login page or in-app banner
+        (writes to the matching slot in their <code style={{ fontFamily: font.mono }}>ad_banner_settings</code> row).
+        Each slot pushes independently -- the client itself keeps the same two-slot split. Only the
+        most recently pushed video per client per slot takes effect there, and pushing a URL always
+        clears anything the client uploaded locally for that slot (there's no way to transfer an
+        uploaded file's bytes from here, only to write a link).
       </p>
 
       <div style={{ background: color.infoSoft, border: `1px solid ${color.info}22`, borderRadius: 8, padding: '12px 16px', marginBottom: 20, maxWidth: 640 }}>
@@ -278,7 +281,7 @@ function VideoBannerTab({
       {showForm && (
         <div style={card({ padding: 22, marginBottom: 20 })}>
           <form onSubmit={onCreate}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginBottom: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 14, marginBottom: 14 }}>
               <div>
                 <label style={fieldLabel()}>Video URL</label>
                 <input
@@ -292,6 +295,17 @@ function VideoBannerTab({
                 <label style={fieldLabel()}>Label</label>
                 <input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} required style={input()} />
               </div>
+              <div>
+                <label style={fieldLabel()}>Slot</label>
+                <select
+                  value={form.slot}
+                  onChange={(e) => setForm({ ...form, slot: e.target.value as VideoSlot })}
+                  style={input()}
+                >
+                  <option value="login">Login page</option>
+                  <option value="app">In-app banner</option>
+                </select>
+              </div>
             </div>
             <ClientPicker clients={clients} selected={form.client_ids} onToggle={toggleClient} />
             <button type="submit" className="btn" style={{ ...button('primary'), marginTop: 14 }}>Create</button>
@@ -304,6 +318,7 @@ function VideoBannerTab({
           <thead>
             <tr>
               <th style={th()}>Label</th>
+              <th style={th()}>Slot</th>
               <th style={th()}>Video URL</th>
               <th style={th()}>Active</th>
               <th style={th()}>Targeted Clients</th>
@@ -315,6 +330,7 @@ function VideoBannerTab({
             {videos.map((v) => (
               <tr key={v.id} className="tr" style={{ borderBottom: `1px solid ${color.border}` }}>
                 <td style={td({ fontWeight: 500 })}>{v.label}</td>
+                <td style={td()}>{v.slot === 'app' ? 'In-app banner' : 'Login page'}</td>
                 <td style={td({ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })}>
                   {v.video_url ? (
                     <a href={v.video_url} target="_blank" rel="noreferrer" style={{ color: color.info, textDecoration: 'none' }}>{v.video_url}</a>
@@ -333,7 +349,7 @@ function VideoBannerTab({
               </tr>
             ))}
             {videos.length === 0 && (
-              <tr><td colSpan={6} style={td({ padding: 26, textAlign: 'center', color: color.textMuted })}>No video banners yet.</td></tr>
+              <tr><td colSpan={7} style={td({ padding: 26, textAlign: 'center', color: color.textMuted })}>No video banners yet.</td></tr>
             )}
           </tbody>
         </table>

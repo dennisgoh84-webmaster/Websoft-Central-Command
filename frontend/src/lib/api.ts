@@ -85,10 +85,16 @@ export interface Advertisement {
   assignments: { client_id: string; pushed_at: string | null }[]
 }
 
+/** Which client-side slot this pushes to -- `login` (the client's Login
+ * page) or `app` (its in-app banner) -- mirrors websoft-service-erp's
+ * App\Models\AdBannerSettings::SLOT_* split (2026-09-16). */
+export type VideoSlot = 'login' | 'app'
+
 export interface VideoSetting {
   id: string
   video_url: string | null
   label: string
+  slot: VideoSlot
   is_active: boolean
   created_at: string
   assignments: { client_id: string; pushed_at: string | null }[]
@@ -306,7 +312,7 @@ export const api = {
 
   // Videos
   listVideos: () => request<VideoSetting[]>('/advertisements/videos'),
-  createVideo: (data: { video_url?: string; label: string; client_ids?: string[] }) =>
+  createVideo: (data: { video_url?: string; label: string; slot: VideoSlot; client_ids?: string[] }) =>
     request<VideoSetting>('/advertisements/videos', { method: 'POST', body: JSON.stringify(data) }),
   pushVideo: (id: string) =>
     request<PushResult>(`/advertisements/videos/${id}/push`, { method: 'POST' }),

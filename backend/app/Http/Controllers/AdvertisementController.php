@@ -12,6 +12,7 @@ use App\Support\ApiException;
 use App\Support\ClientDbException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 
 /** Advertisement management + push to client DBs. */
 class AdvertisementController extends Controller
@@ -166,9 +167,14 @@ class AdvertisementController extends Controller
 
     public function storeVideo(Request $request)
     {
+        $request->validate([
+            'slot' => ['required', Rule::in(VideoSetting::SLOTS)],
+        ]);
+
         $video = new VideoSetting([
             'video_url' => $request->input('video_url'),
             'label' => $request->input('label', 'Default'),
+            'slot' => $request->input('slot'),
         ]);
         $video->save();
         $video->refresh();
@@ -198,7 +204,7 @@ class AdvertisementController extends Controller
                 continue;
             }
             try {
-                $this->clientDb->pushVideoUrl($client, $video->video_url, $adminId);
+                $this->clientDb->pushVideoUrl($client, $video->slot, $video->video_url, $adminId);
                 $assignment->pushed_at = Carbon::now();
                 $assignment->save();
                 $results[] = ['client' => $client->name, 'success' => true];
@@ -232,6 +238,7 @@ class AdvertisementController extends Controller
             'id' => (string) $v->id,
             'video_url' => $v->video_url,
             'label' => $v->label,
+            'slot' => $v->slot,
             'is_active' => $v->is_active,
             'created_at' => $v->created_at?->toISOString(),
             'assignments' => $v->relationLoaded('assignments') ? $v->assignments->map(fn (VideoAssignment $a) => [
