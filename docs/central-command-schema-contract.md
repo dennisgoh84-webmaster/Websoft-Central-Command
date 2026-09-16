@@ -109,7 +109,7 @@ building UI for license management.  Does not write to this table.
 | `id` | `uuid` PK | Company identifier within this client database |
 | `code` | `varchar(10)` unique | System-generated short code, `C001`, `C002`, … in creation order; never edited |
 | `name` | `varchar(200)` | Company name |
-| `registration_number` | `varchar(50)` nullable | UEN / registration number |
+| `uen` | `varchar(50)` nullable | Singapore UEN / business registration number |
 
 Central Command uses the `companies` table to identify which companies
 exist in a client database and map them to its own client registry.
@@ -153,6 +153,14 @@ Central Command calls the client's **migration head** — stored on
 `clients.last_known_migration_head`, checked before every write via
 `App\Services\ClientDbService::checkMigrationHead()`, and compared
 against registered ERP versions on the Version Control page.
+
+`checkMigrationHead()` also optionally refuses a client whose head is
+behind `centralcommand.min_client_migration_head`
+(`CC_MIN_CLIENT_MIGRATION_HEAD`) — unset by default (no floor), since
+Laravel's date-prefixed migration filenames already sort correctly as
+plain strings, no version parsing needed. Renamed 2026-09-16 from the
+dead pre-Laravel `min_client_alembic_head` config, which nothing ever
+actually read.
 
 Current head: the last file in `backend-php/database/migrations/`.
 
@@ -224,4 +232,4 @@ and `::encryptForClient()`
 
 ---
 
-Last updated: 2026-09-16 (schema versioning switched to Laravel migrations; System Mail Settings push built)
+Last updated: 2026-09-16 (fixed against a real client install: `companies.registration_number` renamed to `uen`, `min_client_migration_head` push guard wired up and renamed from the dead pre-Laravel `min_client_alembic_head`; schema versioning switched to Laravel migrations; System Mail Settings push built)

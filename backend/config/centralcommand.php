@@ -16,10 +16,18 @@ return [
     'jwt_algorithm' => 'HS256',
     'access_token_expire_minutes' => env('CC_ACCESS_TOKEN_EXPIRE_MINUTES', 60 * 8),
 
-    // Minimum Alembic migration head the client DB must be at for
-    // Central Command to write to it. Updated whenever the client-side
-    // schema contract changes.
-    'min_client_alembic_head' => env('CC_MIN_CLIENT_ALEMBIC_HEAD', 'b2c3d4e5f6a7'),
+    // Minimum Laravel migration filename the client DB must have
+    // applied for Central Command to write to it (compared as a plain
+    // string against `migrations.migration` — safe because Laravel's
+    // date-prefixed filenames already sort chronologically). Enforced
+    // in App\Services\ClientDbService::checkMigrationHead(). Empty by
+    // default (no floor) so upgrading Central Command never suddenly
+    // locks out an older-but-otherwise-fine client fleet; set it once
+    // every client is confirmed to have run a given migration and you
+    // want pushes to refuse anything older. Updated whenever the
+    // client-side schema contract changes — see
+    // docs/central-command-schema-contract.md.
+    'min_client_migration_head' => env('CC_MIN_CLIENT_MIGRATION_HEAD'),
 
     // Origins allowed to call the API with credentials (dev frontend server).
     'cors_allowed_origins' => ['http://localhost:5174'],

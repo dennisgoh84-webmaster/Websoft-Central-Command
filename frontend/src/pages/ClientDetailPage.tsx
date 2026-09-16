@@ -377,7 +377,7 @@ export default function ClientDetailPage() {
                       <strong>Companies ({testResult.companies.length}):</strong>
                       <ul style={{ margin: '5px 0 0', paddingLeft: 18 }}>
                         {testResult.companies.map((c) => (
-                          <li key={c.id}>{c.name} {c.registration_number && `(${c.registration_number})`}</li>
+                          <li key={c.id}>{c.name} {c.uen && `(${c.uen})`}</li>
                         ))}
                       </ul>
                     </div>

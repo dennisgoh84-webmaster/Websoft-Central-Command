@@ -72,7 +72,7 @@ export interface ConnectionTestResult {
   success: boolean
   message: string
   migration_head: string | null
-  companies: { id: string; name: string; registration_number: string | null }[] | null
+  companies: { id: string; name: string; uen: string | null }[] | null
 }
 
 export interface Advertisement {

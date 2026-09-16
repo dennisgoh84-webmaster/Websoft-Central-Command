@@ -54,9 +54,9 @@ class ClientDbService
             $migrationHead = $this->readMigrationHead($pdo);
 
             $companies = [];
-            $stmt = $pdo->query('SELECT id, name, registration_number FROM companies LIMIT 50');
+            $stmt = $pdo->query('SELECT id, name, uen FROM companies LIMIT 50');
             foreach ($stmt->fetchAll(PDO::FETCH_NUM) as $r) {
-                $companies[] = ['id' => (string) $r[0], 'name' => $r[1], 'registration_number' => $r[2]];
+                $companies[] = ['id' => (string) $r[0], 'name' => $r[1], 'uen' => $r[2]];
             }
 
             return [
@@ -82,12 +82,26 @@ class ClientDbService
         return $row ? $row[0] : null;
     }
 
-    /** Check schema compatibility before writing. Returns the migration head or throws. */
+    /**
+     * Check schema compatibility before writing. Returns the migration
+     * head or throws. When `centralcommand.min_client_migration_head`
+     * is set, also refuses a client whose head sorts before it —
+     * Laravel's date-prefixed migration filenames compare correctly as
+     * plain strings, so this needs no version-number parsing.
+     */
     public function checkMigrationHead(PDO $pdo): string
     {
         $head = $this->readMigrationHead($pdo);
         if ($head === null) {
             throw new ClientDbException('No migrations table found in client DB (or it is empty) — cannot verify schema compatibility before writing');
+        }
+
+        $minRequired = config('centralcommand.min_client_migration_head');
+        if ($minRequired && strcmp($head, $minRequired) < 0) {
+            throw new ClientDbException(
+                "Client's schema is behind the minimum required migration ('{$minRequired}'); ".
+                "latest applied there is '{$head}'. Run `php artisan migrate` on the client before pushing."
+            );
         }
 
         return $head;
