@@ -221,6 +221,30 @@ export interface SupportLogin {
   revoked_at: string | null
 }
 
+// ── Central Command Upgrade ──────────────────────────────────────────
+export interface CcVersionInfo {
+  current_version: string | null
+  current_status: string
+  last_upgraded_at: string | null
+}
+
+export interface CcUpgradeCheckInfo {
+  can_upgrade: boolean
+  current_version: string | null
+  latest_version: string | null
+  reason: string | null
+}
+
+export interface CcVersionHistoryEntry {
+  id: string
+  version: string
+  status: string
+  release_notes: string | null
+  error_message: string | null
+  upgraded_at: string
+  created_at: string
+}
+
 // ── API methods ──────────────────────────────────────────────────────
 
 // ── Auth response types ─────────────────────────────────────────────
@@ -405,4 +429,28 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ new_password: newPassword }),
     }),
+  changeAdminPassword: (userId: string, currentPassword: string | null, newPassword: string) =>
+    request<AdminUser>(`/staff/${userId}/change-password`, {
+      method: 'POST',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
+  resetAdminUsername: (userId: string, username: string) =>
+    request<AdminUser>(`/staff/${userId}/reset-username`, {
+      method: 'POST',
+      body: JSON.stringify({ username }),
+    }),
+  addSupportStaff: (data: { username: string; full_name: string; email: string; password: string }) =>
+    request<AdminUser>('/staff/support-logins', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Central Command Upgrade
+  getCcVersion: () => request<CcVersionInfo>('/cc-upgrade/version'),
+  checkCcUpgrade: () => request<CcUpgradeCheckInfo>('/cc-upgrade/check'),
+  getCcVersionHistory: () => request<CcVersionHistoryEntry[]>('/cc-upgrade/history'),
+  upgradeCc: (targetVersion: string) =>
+    request<{ success: boolean; message: string; new_version: string }>('/cc-upgrade/upgrade', {
+      method: 'POST',
+      body: JSON.stringify({ target_version: targetVersion }),
+    }),
+  rollbackCc: () =>
+    request<{ success: boolean; message: string; current_version: string }>('/cc-upgrade/rollback', { method: 'POST' }),
 }

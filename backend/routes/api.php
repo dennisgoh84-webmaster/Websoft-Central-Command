@@ -4,6 +4,7 @@ use App\Http\Controllers\AdvertisementController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\ConfigUpdateController;
+use App\Http\Controllers\CcUpgradeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HealthController;
 use App\Http\Controllers\LicenseController;
@@ -112,5 +113,14 @@ Route::middleware('cc.auth')->group(function () {
         Route::post('/support-logins/{loginId}/revoke', [StaffController::class, 'revokeSupportLogin']);
         Route::patch('/support-logins/{loginId}', [StaffController::class, 'updateSupportLogin']);
         Route::post('/support-logins/{loginId}/reset-password', [StaffController::class, 'resetSupportLoginPassword']);
+    });
+
+    // ── Central Command Upgrade ──────────────────────────────────────
+    Route::prefix('cc-upgrade')->group(function () {
+        Route::get('/version', [CcUpgradeController::class, 'getVersion']);
+        Route::get('/check', [CcUpgradeController::class, 'checkUpgrade']);
+        Route::get('/history', [CcUpgradeController::class, 'getVersionHistory']);
+        Route::post('/upgrade', [CcUpgradeController::class, 'upgrade']);
+        Route::post('/rollback', [CcUpgradeController::class, 'rollback']);
     });
 });

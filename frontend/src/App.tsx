@@ -10,6 +10,8 @@ import ConfigUpdatesPage from './pages/ConfigUpdatesPage'
 import VersionControlPage from './pages/VersionControlPage'
 import StaffPage from './pages/StaffPage'
 import SystemMailPage from './pages/SystemMailPage'
+import VersionManagementPage from './pages/VersionManagementPage'
+import CcUpgradePage from './pages/CcUpgradePage'
 
 export default function App() {
   const { user, loading } = useAuth()
@@ -34,6 +36,8 @@ export default function App() {
         <Route path="/advertisements" element={<AdvertisementsPage />} />
         <Route path="/config-updates" element={<ConfigUpdatesPage />} />
         <Route path="/versions" element={<VersionControlPage />} />
+        <Route path="/version-management" element={<VersionManagementPage />} />
+        <Route path="/cc-upgrade" element={<CcUpgradePage />} />
         <Route path="/system-mail" element={<SystemMailPage />} />
         <Route path="/staff" element={<StaffPage />} />
         <Route path="*" element={<Navigate to="/" />} />
