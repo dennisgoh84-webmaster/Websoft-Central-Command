@@ -8,6 +8,8 @@ use App\Models\PushLog;
 use App\Models\SupportLogin;
 use App\Services\AuthService;
 use App\Services\ClientDbService;
+use App\Services\PasswordValidator;
+use App\Services\PasswordHistoryService;
 use App\Support\ApiException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -49,15 +51,26 @@ class StaffController extends Controller
             throw new ApiException(400, 'Invalid role. Must be one of: '.implode(', ', self::VALID_ROLES));
         }
 
+        $password = (string) $request->input('password');
+        $validation = PasswordValidator::validate($password);
+        if (! $validation['valid']) {
+            throw new ApiException(400, 'Password does not meet requirements: '.implode(', ', $validation['errors']));
+        }
+
+        $hashedPassword = $this->auth->hashPassword($password);
         $user = new AdminUser([
             'username' => $username,
             'full_name' => $request->input('full_name'),
             'email' => $request->input('email'),
-            'hashed_password' => $this->auth->hashPassword((string) $request->input('password')),
+            'hashed_password' => $hashedPassword,
             'role' => $role,
+            'force_password_change_on_next_login' => false,
+            'last_password_changed_at' => now(),
         ]);
         $user->save();
         $user->refresh();
+
+        PasswordHistoryService::recordAdminPasswordChange((string) $user->id, $hashedPassword);
 
         return response()->json($this->userOut($user), 201);
     }
@@ -105,7 +118,21 @@ class StaffController extends Controller
             $user->is_active = $request->boolean('is_active');
         }
         if ($request->filled('password')) {
-            $user->hashed_password = $this->auth->hashPassword((string) $request->input('password'));
+            $newPassword = (string) $request->input('password');
+            $validation = PasswordValidator::validate($newPassword);
+            if (! $validation['valid']) {
+                throw new ApiException(400, 'Password does not meet requirements: '.implode(', ', $validation['errors']));
+            }
+            if (PasswordHistoryService::isAdminPasswordReused((string) $user->id, $newPassword)) {
+                throw new ApiException(400, 'Cannot reuse one of your last 5 passwords');
+            }
+            $hashedPassword = $this->auth->hashPassword($newPassword);
+            $user->hashed_password = $hashedPassword;
+            $user->last_password_changed_at = now();
+            PasswordHistoryService::recordAdminPasswordChange((string) $user->id, $hashedPassword);
+        }
+        if ($request->exists('force_password_change_on_next_login')) {
+            $user->force_password_change_on_next_login = $request->boolean('force_password_change_on_next_login');
         }
         $user->save();
 
@@ -229,8 +256,11 @@ class StaffController extends Controller
                 'client_user_id' => $clientUserId,
                 'reason' => $reason,
                 'pushed_by' => $admin->id,
+                'force_password_change_on_next_login' => true,
             ]);
             $supportLogin->save();
+
+            PasswordHistoryService::recordSupportPasswordChange((string) $supportLogin->id, $hashedPwd);
 
             PushLog::create([
                 'client_id' => $client->id,
@@ -322,6 +352,110 @@ class StaffController extends Controller
         return response()->json($this->supportLoginOut($supportLogin));
     }
 
+    // ── Password & Username Management ──────────────────────────────
+
+    public function changeAdminPassword(string $userId, Request $request)
+    {
+        $admin = $this->currentAdmin($request);
+        $user = AdminUser::find($userId);
+        if (! $user) {
+            throw new ApiException(404, 'Staff not found');
+        }
+
+        if ((string) $admin->id !== (string) $user->id && $admin->role !== self::SUPER_ADMIN) {
+            throw new ApiException(403, 'Can only change your own password or be a super admin');
+        }
+
+        $currentPassword = $request->input('current_password');
+        if ($currentPassword !== null && ! $this->auth->verifyPassword((string) $currentPassword, $user->hashed_password)) {
+            throw new ApiException(400, 'Current password is incorrect');
+        }
+
+        $newPassword = (string) $request->input('new_password');
+        $validation = PasswordValidator::validate($newPassword);
+        if (! $validation['valid']) {
+            throw new ApiException(400, 'Password does not meet requirements: '.implode(', ', $validation['errors']));
+        }
+
+        if (PasswordHistoryService::isAdminPasswordReused((string) $user->id, $newPassword)) {
+            throw new ApiException(400, 'Cannot reuse one of your last 5 passwords');
+        }
+
+        $hashedPassword = $this->auth->hashPassword($newPassword);
+        $user->hashed_password = $hashedPassword;
+        $user->last_password_changed_at = now();
+        $user->force_password_change_on_next_login = false;
+        $user->save();
+
+        PasswordHistoryService::recordAdminPasswordChange((string) $user->id, $hashedPassword);
+
+        return response()->json($this->userOut($user));
+    }
+
+    public function resetAdminUsername(string $userId, Request $request)
+    {
+        $admin = $this->currentAdmin($request);
+        if ($admin->role !== self::SUPER_ADMIN) {
+            throw new ApiException(403, 'Only super admins can reset usernames');
+        }
+
+        $user = AdminUser::find($userId);
+        if (! $user) {
+            throw new ApiException(404, 'Staff not found');
+        }
+
+        $newUsername = (string) $request->input('username');
+        if (AdminUser::where('username', $newUsername)->where('id', '!=', $userId)->exists()) {
+            throw new ApiException(400, "Username '{$newUsername}' already in use");
+        }
+
+        $user->username = $newUsername;
+        $user->save();
+
+        return response()->json($this->userOut($user));
+    }
+
+    public function addSupportStaff(Request $request)
+    {
+        $admin = $this->currentAdmin($request);
+        if ($admin->role !== self::SUPER_ADMIN) {
+            throw new ApiException(403, 'Only super admins can add support staff');
+        }
+
+        $email = (string) $request->input('email');
+        if (AdminUser::where('email', $email)->exists()) {
+            throw new ApiException(400, "Email '{$email}' already registered");
+        }
+
+        $username = (string) $request->input('username');
+        if (AdminUser::where('username', $username)->exists()) {
+            throw new ApiException(400, "Username '{$username}' already exists");
+        }
+
+        $password = (string) $request->input('password');
+        $validation = PasswordValidator::validate($password);
+        if (! $validation['valid']) {
+            throw new ApiException(400, 'Password does not meet requirements: '.implode(', ', $validation['errors']));
+        }
+
+        $hashedPassword = $this->auth->hashPassword($password);
+        $user = new AdminUser([
+            'username' => $username,
+            'full_name' => $request->input('full_name'),
+            'email' => $email,
+            'hashed_password' => $hashedPassword,
+            'role' => 'support_engineer',
+            'force_password_change_on_next_login' => true,
+            'last_password_changed_at' => now(),
+        ]);
+        $user->save();
+        $user->refresh();
+
+        PasswordHistoryService::recordAdminPasswordChange((string) $user->id, $hashedPassword);
+
+        return response()->json($this->userOut($user), 201);
+    }
+
     /**
      * Reset the password of an already-pushed support login, without
      * creating a duplicate support_logins audit row (unlike pushing a
@@ -345,19 +479,26 @@ class StaffController extends Controller
         }
 
         $newPassword = (string) $request->input('new_password');
-        if (strlen($newPassword) < 8) {
-            throw new ApiException(400, 'Password must be at least 8 characters');
+        $validation = PasswordValidator::validate($newPassword);
+        if (! $validation['valid']) {
+            throw new ApiException(400, 'Password does not meet requirements: '.implode(', ', $validation['errors']));
+        }
+        if (PasswordHistoryService::isSupportPasswordReused((string) $supportLogin->id, $newPassword)) {
+            throw new ApiException(400, 'Cannot reuse one of the last 5 passwords');
         }
 
         try {
             $pdo = $this->clientDb->connect($client);
+            $hashedPassword = $this->auth->hashPassword($newPassword);
             $stmt = $pdo->prepare(<<<'SQL'
                 UPDATE users SET
                     hashed_password = :pwd,
                     must_change_password = true
                 WHERE id = :uid
             SQL);
-            $stmt->execute(['uid' => $supportLogin->client_user_id, 'pwd' => $this->auth->hashPassword($newPassword)]);
+            $stmt->execute(['uid' => $supportLogin->client_user_id, 'pwd' => $hashedPassword]);
+
+            PasswordHistoryService::recordSupportPasswordChange((string) $supportLogin->id, $hashedPassword);
 
             PushLog::create([
                 'client_id' => $client->id,
@@ -398,6 +539,8 @@ class StaffController extends Controller
             'email' => $u->email,
             'role' => $u->role,
             'is_active' => $u->is_active,
+            'force_password_change_on_next_login' => $u->force_password_change_on_next_login,
+            'last_password_changed_at' => $u->last_password_changed_at?->toISOString(),
             'created_at' => $u->created_at?->toISOString(),
         ];
     }
@@ -412,6 +555,7 @@ class StaffController extends Controller
             'client_user_id' => $s->client_user_id,
             'status' => $s->status,
             'reason' => $s->reason,
+            'force_password_change_on_next_login' => $s->force_password_change_on_next_login,
             'pushed_at' => $s->pushed_at?->toISOString(),
             'pushed_by' => $s->pushed_by ? (string) $s->pushed_by : null,
             'revoked_at' => $s->revoked_at?->toISOString(),

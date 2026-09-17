@@ -20,13 +20,14 @@ class SupportLogin extends CcModel
 
     protected $fillable = [
         'admin_user_id', 'client_id', 'login_email', 'client_user_id',
-        'status', 'reason', 'pushed_by', 'revoked_at',
+        'status', 'reason', 'pushed_by', 'revoked_at', 'force_password_change_on_next_login',
     ];
 
     protected function casts(): array
     {
         return [
             'status' => UppercaseDbEnum::class,
+            'force_password_change_on_next_login' => 'boolean',
             'pushed_at' => 'datetime',
             'revoked_at' => 'datetime',
         ];

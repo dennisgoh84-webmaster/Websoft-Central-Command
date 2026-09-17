@@ -101,12 +101,16 @@ Route::middleware('cc.auth')->group(function () {
     Route::prefix('staff')->group(function () {
         Route::get('/', [StaffController::class, 'index']);
         Route::post('/', [StaffController::class, 'store']);
+        Route::patch('/{userId}', [StaffController::class, 'update']);
+        Route::delete('/{userId}', [StaffController::class, 'destroy']);
+        Route::post('/{userId}/change-password', [StaffController::class, 'changeAdminPassword']);
+        Route::post('/{userId}/reset-username', [StaffController::class, 'resetAdminUsername']);
+
         Route::get('/support-logins', [StaffController::class, 'listSupportLogins']);
+        Route::post('/support-logins', [StaffController::class, 'addSupportStaff']);
         Route::post('/support-logins/push', [StaffController::class, 'pushSupportLogin']);
         Route::post('/support-logins/{loginId}/revoke', [StaffController::class, 'revokeSupportLogin']);
         Route::patch('/support-logins/{loginId}', [StaffController::class, 'updateSupportLogin']);
         Route::post('/support-logins/{loginId}/reset-password', [StaffController::class, 'resetSupportLoginPassword']);
-        Route::patch('/{userId}', [StaffController::class, 'update']);
-        Route::delete('/{userId}', [StaffController::class, 'destroy']);
     });
 });

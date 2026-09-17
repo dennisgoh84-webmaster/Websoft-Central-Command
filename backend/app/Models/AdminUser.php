@@ -23,6 +23,7 @@ class AdminUser extends CcModel
 
     protected $fillable = [
         'username', 'full_name', 'email', 'hashed_password', 'role', 'is_active',
+        'force_password_change_on_next_login', 'last_password_changed_at',
     ];
 
     protected $hidden = ['hashed_password'];
@@ -31,7 +32,9 @@ class AdminUser extends CcModel
     {
         return [
             'is_active' => 'boolean',
+            'force_password_change_on_next_login' => 'boolean',
             'created_at' => 'datetime',
+            'last_password_changed_at' => 'datetime',
         ];
     }
 }
