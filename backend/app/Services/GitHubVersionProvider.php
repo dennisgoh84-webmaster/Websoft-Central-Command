@@ -6,22 +6,38 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
 use Exception;
 
+/**
+ * Latest GitHub release of one repository -- the client ERP by default
+ * (what VersionManagementService pushes to clients), or Central Command
+ * itself via forCentralCommand() (what CcUpgradeService upgrades).
+ */
 class GitHubVersionProvider
 {
-    private const GITHUB_API_URL = 'https://api.github.com/repos/dennisgoh84-webmaster/websoft-service-erp/releases/latest';
+    public const ERP_REPO = 'dennisgoh84-webmaster/websoft-service-erp';
+
+    public const CENTRAL_COMMAND_REPO = 'dennisgoh84-webmaster/Websoft-Central-Command';
+
     private const CACHE_TTL = 3600; // 1 hour
+
+    public function __construct(private string $repo = self::ERP_REPO) {}
+
+    public static function forCentralCommand(): self
+    {
+        return new self(self::CENTRAL_COMMAND_REPO);
+    }
 
     public function getLatestRelease(): array
     {
         try {
-            $cached = Cache::get('github_latest_release');
+            $cacheKey = 'github_latest_release:'.$this->repo;
+            $cached = Cache::get($cacheKey);
             if ($cached) {
                 return $cached;
             }
 
             $response = Http::withHeaders([
                 'Accept' => 'application/vnd.github.v3+json',
-            ])->timeout(10)->get(self::GITHUB_API_URL);
+            ])->timeout(10)->get("https://api.github.com/repos/{$this->repo}/releases/latest");
 
             if (!$response->successful()) {
                 throw new Exception('Failed to fetch from GitHub API');
@@ -39,7 +55,7 @@ class GitHubVersionProvider
                 'download_url' => $this->getDownloadUrl($data),
             ];
 
-            Cache::put('github_latest_release', $release, self::CACHE_TTL);
+            Cache::put($cacheKey, $release, self::CACHE_TTL);
 
             return $release;
         } catch (Exception $e) {

@@ -5,16 +5,51 @@ namespace App\Services;
 use App\Models\CcVersionHistory;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Str;
 use RuntimeException;
-use Str;
 
+/**
+ * Upgrades THIS Central Command install from its own GitHub releases
+ * (the client-ERP counterpart is VersionManagementService). Only code
+ * and config are backed up and swapped; the database is never
+ * restored, only migrated forward, so existing data survives.
+ */
 class CcUpgradeService
 {
-    public function __construct(private GitHubVersionProvider $githubProvider) {}
+    private GitHubVersionProvider $githubProvider;
 
+    public function __construct()
+    {
+        $this->githubProvider = GitHubVersionProvider::forCentralCommand();
+    }
+
+    /**
+     * The tracked current row, seeded from the checked-out git tag the
+     * first time nothing is tracked yet (an install that predates
+     * version tracking) so the page has something to compare against.
+     */
     public function getCurrentVersion(): ?CcVersionHistory
     {
-        return CcVersionHistory::getCurrentVersion();
+        $current = CcVersionHistory::getCurrentVersion();
+        if ($current) {
+            return $current;
+        }
+
+        $tag = $this->getGitCurrentTag();
+        if ($tag === '') {
+            return null;
+        }
+
+        $current = new CcVersionHistory([
+            'id' => (string) Str::uuid(),
+            'version' => $tag,
+            'status' => 'current',
+            'upgraded_at' => Carbon::now(),
+            'created_at' => Carbon::now(),
+        ]);
+        $current->save();
+
+        return $current;
     }
 
     public function getPreviousVersion(): ?CcVersionHistory
@@ -24,8 +59,7 @@ class CcUpgradeService
 
     public function getLatestVersionFromGithub(): ?string
     {
-        $release = $this->githubProvider->getLatestRelease();
-        return $release ? $release['tag_name'] : null;
+        return $this->githubProvider->getLatestRelease()['version'] ?? null;
     }
 
     public function canUpgrade(): array
@@ -38,7 +72,7 @@ class CcUpgradeService
         }
 
         if (!$current) {
-            return ['can_upgrade' => false, 'reason' => 'Current version not tracked'];
+            return ['can_upgrade' => false, 'reason' => 'Current version not tracked (checkout is not on a git tag)'];
         }
 
         $canUpgrade = $this->githubProvider->compareVersions($current->version, $latest) < 0;
@@ -76,7 +110,7 @@ class CcUpgradeService
                 'id' => (string) Str::uuid(),
                 'version' => $targetVersion,
                 'status' => 'current',
-                'release_notes' => $this->githubProvider->getReleaseNotes($targetVersion),
+                'release_notes' => $this->githubProvider->getLatestRelease()['release_notes'] ?? null,
                 'backup_path' => $this->getBackupPath($current->version, $targetVersion),
                 'upgraded_at' => Carbon::now(),
                 'created_at' => Carbon::now(),
@@ -142,7 +176,7 @@ class CcUpgradeService
 
     private function pullLatestCode(string $version): void
     {
-        shell_exec('cd '.base_path().' && git fetch origin && git checkout '.$version);
+        shell_exec('cd '.escapeshellarg(base_path()).' && git fetch origin --tags && git checkout '.escapeshellarg($version).' 2>&1');
         if ($this->getGitCurrentTag() !== $version) {
             throw new RuntimeException('Failed to checkout version '.$version);
         }
@@ -150,7 +184,7 @@ class CcUpgradeService
 
     private function getGitCurrentTag(): string
     {
-        return trim(shell_exec('cd '.base_path().' && git describe --tags --exact-match 2>/dev/null || echo ""'));
+        return trim((string) shell_exec('cd '.escapeshellarg(base_path()).' && git describe --tags --exact-match 2>/dev/null'));
     }
 
     private function runMigrations(): void
