@@ -76,7 +76,7 @@ export default function VersionManagementPage() {
                   <span style={{ fontSize: 11, color: color.textMuted }}>{c.code}</span>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6, fontSize: 11 }}>
-                  <ProbeBadges probe={probe} />
+                  <ProbeBadges probe={probe} neverConnected={c.last_connected_at === null} />
                 </div>
               </button>
             )
@@ -88,7 +88,7 @@ export default function VersionManagementPage() {
           {selected && selectedId ? (
             selectedProbe?.state === 'error' ? (
               <div style={card({ padding: 18 })}>
-                <strong>{selected.name} is unreachable.</strong>
+                <strong>{selected.last_connected_at === null ? `${selected.name} has never been connected -- check its database details on the Clients page.` : `${selected.name} is unreachable.`}</strong>
                 <p style={{ fontSize: 12.5, color: color.textMuted, margin: '6px 0 0' }}>{selectedProbe.message}</p>
               </div>
             ) : (
@@ -111,9 +111,12 @@ export default function VersionManagementPage() {
   )
 }
 
-function ProbeBadges({ probe }: { probe: Probe | undefined }) {
+function ProbeBadges({ probe, neverConnected }: { probe: Probe | undefined; neverConnected: boolean }) {
   if (!probe || probe.state === 'loading') return <span style={{ color: color.textFaint }}>checking…</span>
-  if (probe.state === 'error') return <span style={badge('danger')}>Unreachable</span>
+  if (probe.state === 'error') {
+    // A client that has never been reached is most likely not set up yet, not down.
+    return <span style={badge(neverConnected ? 'neutral' : 'danger')}>{neverConnected ? 'Never connected' : 'Unreachable'}</span>
+  }
   const s = probe.status
   const behind = s.agent?.commits_behind ?? 0
   return (

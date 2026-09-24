@@ -27,6 +27,7 @@ class VersionManagementController extends Controller
     {
         $rows = Client::orderBy('name')->get()->map(fn (Client $c) => [
             'id' => (string) $c->id, 'name' => $c->name, 'code' => $c->code, 'status' => $c->status,
+            'last_connected_at' => $c->last_connected_at?->toISOString(),
         ]);
 
         return response()->json($rows->all());

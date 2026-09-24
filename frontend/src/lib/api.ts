@@ -269,6 +269,8 @@ export interface ClientUpgradeListItem {
   name: string
   code: string
   status: string
+  /** Null = Central Command has never successfully connected to this client (e.g. registered but not set up yet). */
+  last_connected_at: string | null
 }
 
 // ── API methods ──────────────────────────────────────────────────────
