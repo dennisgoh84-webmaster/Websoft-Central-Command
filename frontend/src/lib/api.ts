@@ -338,6 +338,10 @@ export const api = {
   listVideos: () => request<VideoSetting[]>('/advertisements/videos'),
   createVideo: (data: { video_url?: string; label: string; slot: VideoSlot; client_ids?: string[] }) =>
     request<VideoSetting>('/advertisements/videos', { method: 'POST', body: JSON.stringify(data) }),
+  updateVideo: (id: string, data: Partial<{ video_url: string | null; label: string; slot: VideoSlot; is_active: boolean; client_ids: string[] }>) =>
+    request<VideoSetting>(`/advertisements/videos/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  deleteVideo: (id: string) =>
+    request<void>(`/advertisements/videos/${id}`, { method: 'DELETE' }),
   pushVideo: (id: string) =>
     request<PushResult>(`/advertisements/videos/${id}/push`, { method: 'POST' }),
 

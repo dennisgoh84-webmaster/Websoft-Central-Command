@@ -119,10 +119,14 @@ class AdvertisementController extends Controller
         return response()->json(['results' => $results]);
     }
 
-    /** Push ALL active advertisements to their assigned clients. */
+    /**
+     * Push EVERY advertisement (hidden ones included) to its assigned
+     * clients, so a hide/show toggled here is mirrored there -- the
+     * client can't change is_active on a pushed row itself.
+     */
     public function pushAll(Request $request)
     {
-        $ads = Advertisement::with('assignments')->where('is_active', true)->get();
+        $ads = Advertisement::with('assignments')->get();
         $adminId = (string) $request->attributes->get('admin')->id;
 
         // Group announcements by client
@@ -187,7 +191,53 @@ class AdvertisementController extends Controller
         return response()->json($this->videoOut($video), 201);
     }
 
-    /** Push video URL to assigned clients. */
+    public function updateVideo(string $videoId, Request $request)
+    {
+        $video = VideoSetting::find($videoId);
+        if (! $video) {
+            throw new ApiException(404, 'Video setting not found');
+        }
+        $request->validate([
+            'slot' => ['sometimes', Rule::in(VideoSetting::SLOTS)],
+        ]);
+
+        foreach (['video_url', 'label', 'slot'] as $field) {
+            if ($request->exists($field)) {
+                $video->{$field} = $request->input($field);
+            }
+        }
+        if ($request->exists('is_active')) {
+            $video->is_active = $request->boolean('is_active');
+        }
+        $video->save();
+
+        if ($request->exists('client_ids')) {
+            VideoAssignment::where('video_setting_id', $video->id)->delete();
+            foreach ((array) $request->input('client_ids', []) as $clientId) {
+                VideoAssignment::create(['video_setting_id' => $video->id, 'client_id' => $clientId]);
+            }
+        }
+        $video->load('assignments');
+
+        return response()->json($this->videoOut($video));
+    }
+
+    public function destroyVideo(string $videoId)
+    {
+        $video = VideoSetting::find($videoId);
+        if (! $video) {
+            throw new ApiException(404, 'Video setting not found');
+        }
+        $video->delete();
+
+        return response()->noContent();
+    }
+
+    /**
+     * Push video URL to assigned clients. A hidden (inactive) video
+     * pushes an EMPTY url instead, which clears the slot on the client
+     * and releases it back to the client's own control.
+     */
     public function pushVideo(string $videoId, Request $request)
     {
         $video = VideoSetting::find($videoId);
@@ -195,6 +245,7 @@ class AdvertisementController extends Controller
             throw new ApiException(404, 'Video setting not found');
         }
         $adminId = (string) $request->attributes->get('admin')->id;
+        $urlToPush = $video->is_active ? $video->video_url : null;
 
         $assignments = VideoAssignment::where('video_setting_id', $video->id)->get();
         $results = [];
@@ -204,7 +255,7 @@ class AdvertisementController extends Controller
                 continue;
             }
             try {
-                $this->clientDb->pushVideoUrl($client, $video->slot, $video->video_url, $adminId);
+                $this->clientDb->pushVideoUrl($client, $video->slot, $urlToPush, $adminId);
                 $assignment->pushed_at = Carbon::now();
                 $assignment->save();
                 $results[] = ['client' => $client->name, 'success' => true];

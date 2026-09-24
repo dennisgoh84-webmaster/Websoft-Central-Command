@@ -123,6 +123,9 @@ class ClientDbService
     /**
      * Push announcement rows into a client's `announcements` table.
      * Uses UPSERT (INSERT ON CONFLICT UPDATE) keyed on announcement id.
+     * Every row is stamped `source = 'central'`, which the client ERP
+     * treats as read-only (one-way push, 2026-09-24) -- its own
+     * `source = 'local'` company announcements are never touched.
      *
      * @param  list<array{id: string, tag: ?string, text: string, sort_order: int, is_active: bool}>  $announcements
      */
@@ -134,13 +137,14 @@ class ClientDbService
 
             $pdo->beginTransaction();
             $stmt = $pdo->prepare(<<<'SQL'
-                INSERT INTO announcements (id, tag, text, sort_order, is_active, created_at)
-                VALUES (:id, :tag, :text, :sort_order, :is_active, NOW())
+                INSERT INTO announcements (id, tag, text, sort_order, is_active, source, created_at)
+                VALUES (:id, :tag, :text, :sort_order, :is_active, 'central', NOW())
                 ON CONFLICT (id) DO UPDATE SET
                     tag = EXCLUDED.tag,
                     text = EXCLUDED.text,
                     sort_order = EXCLUDED.sort_order,
-                    is_active = EXCLUDED.is_active
+                    is_active = EXCLUDED.is_active,
+                    source = EXCLUDED.source
             SQL);
             foreach ($announcements as $ann) {
                 $stmt->execute([
@@ -183,6 +187,11 @@ class ClientDbService
      * whatever the client had uploaded locally for that slot, the same
      * way the client's own local settings endpoint supersedes an
      * upload when a URL is saved.
+     *
+     * Pushing a URL also marks the slot `managed_by_central_command`,
+     * which locks the client's own admin screen for it (one-way push,
+     * 2026-09-24). Pushing an empty URL clears the slot AND that flag,
+     * handing control back to the client.
      */
     public function pushVideoUrl(Client $client, string $slot, ?string $videoUrl, ?string $adminId = null): array
     {
@@ -201,15 +210,16 @@ class ClientDbService
                     video_original_filename = NULL,
                     video_content_type = NULL,
                     video_file_size_bytes = NULL,
+                    managed_by_central_command = :managed,
                     updated_at = NOW()
                 WHERE slot = :slot
             SQL);
-            $stmt->execute(['video_url' => $videoUrl, 'slot' => $slot]);
+            $stmt->execute(['video_url' => $videoUrl, 'managed' => $videoUrl !== null && $videoUrl !== '' ? 't' : 'f', 'slot' => $slot]);
 
             $client->last_connected_at = Carbon::now();
             $client->save();
 
-            $detail = "slot={$slot} video_url=".($videoUrl ? substr($videoUrl, 0, 80) : '(cleared)');
+            $detail = "slot={$slot} video_url=".($videoUrl ? substr($videoUrl, 0, 80) : '(cleared, released to client)');
             $this->logPush($client, 'video', $detail, true, pushedBy: $adminId);
 
             return ['success' => true];

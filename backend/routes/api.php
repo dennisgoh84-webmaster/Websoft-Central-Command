@@ -56,6 +56,8 @@ Route::middleware('cc.auth')->group(function () {
 
         Route::get('/videos', [AdvertisementController::class, 'listVideos']);
         Route::post('/videos', [AdvertisementController::class, 'storeVideo']);
+        Route::patch('/videos/{videoId}', [AdvertisementController::class, 'updateVideo']);
+        Route::delete('/videos/{videoId}', [AdvertisementController::class, 'destroyVideo']);
         Route::post('/videos/{videoId}/push', [AdvertisementController::class, 'pushVideo']);
     });
 

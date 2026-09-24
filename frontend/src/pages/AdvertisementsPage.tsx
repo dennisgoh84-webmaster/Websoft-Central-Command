@@ -4,6 +4,12 @@ import { formatDateTime } from '../lib/format'
 import { alert, badge, button, card, color, dismissButton, font, h1, input, label as fieldLabel, pageHeader, tabPill, table, td, th } from '../lib/theme'
 import { ClientPicker, TargetChips } from '../components/ClientTargeting'
 
+// Everything here is ONE-WAY to the clients (Dennis, 2026-09-24): a
+// pushed announcement or video is read-only on the client ERP, so the
+// edit / reorder / hide-show controls live here and are mirrored by
+// the next push. Clients keep their own separately-editable "company
+// announcements" that never come back to Central Command.
+
 type Tab = 'ads' | 'video'
 
 export default function AdvertisementsPage() {
@@ -64,6 +70,12 @@ export default function AdvertisementsPage() {
   )
 }
 
+function errMsg(err: unknown, fallback: string) {
+  return err instanceof Error ? err.message : fallback
+}
+
+const iconButton = { ...button('secondary', 'sm'), padding: '4px 8px', minWidth: 30 } as const
+
 // ── Announcements ──────────────────────────────────────────────────
 
 function AnnouncementsTab({
@@ -77,18 +89,68 @@ function AnnouncementsTab({
   refresh: () => void
 }) {
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ tag: '', text: '', sort_order: 0, client_ids: [] as string[] })
+  const [form, setForm] = useState({ tag: '', text: '', client_ids: [] as string[] })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [edit, setEdit] = useState({ tag: '', text: '', client_ids: [] as string[] })
+
+  const sorted = [...ads].sort((a, b) => a.sort_order - b.sort_order)
 
   async function onCreate(e: FormEvent) {
     e.preventDefault()
     setError('')
     try {
-      await api.createAd(form)
+      await api.createAd({ ...form, sort_order: sorted.length })
       setShowForm(false)
-      setForm({ tag: '', text: '', sort_order: 0, client_ids: [] })
+      setForm({ tag: '', text: '', client_ids: [] })
       refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed')
+      setError(errMsg(err, 'Failed'))
+    }
+  }
+
+  function startEdit(ad: Advertisement) {
+    setEditingId(ad.id)
+    setEdit({ tag: ad.tag ?? '', text: ad.text, client_ids: ad.assignments.map((a) => a.client_id) })
+  }
+
+  async function onSaveEdit(adId: string) {
+    setError('')
+    try {
+      await api.updateAd(adId, { tag: edit.tag || null, text: edit.text, client_ids: edit.client_ids })
+      setEditingId(null)
+      refresh()
+    } catch (err) {
+      setError(errMsg(err, 'Failed to save'))
+    }
+  }
+
+  async function onToggleActive(ad: Advertisement) {
+    setError('')
+    try {
+      await api.updateAd(ad.id, { is_active: !ad.is_active })
+      refresh()
+    } catch (err) {
+      setError(errMsg(err, 'Failed to update'))
+    }
+  }
+
+  // Swap with the neighbour, then write back the index of every row
+  // whose position changed -- this also repairs stale ties (older rows
+  // were all created with sort_order 0).
+  async function onMove(ad: Advertisement, direction: -1 | 1) {
+    const index = sorted.findIndex((a) => a.id === ad.id)
+    const target = index + direction
+    if (target < 0 || target >= sorted.length) return
+    const next = [...sorted]
+    ;[next[index], next[target]] = [next[target], next[index]]
+    setError('')
+    try {
+      await Promise.all(
+        next.map((row, i) => (row.sort_order === i ? Promise.resolve() : api.updateAd(row.id, { sort_order: i }))),
+      )
+      refresh()
+    } catch (err) {
+      setError(errMsg(err, 'Failed to reorder'))
     }
   }
 
@@ -98,7 +160,7 @@ function AnnouncementsTab({
       setPushResult(await api.pushAd(adId))
       refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Push failed')
+      setError(errMsg(err, 'Push failed'))
     }
   }
 
@@ -108,27 +170,28 @@ function AnnouncementsTab({
       setPushResult(await api.pushAllAds())
       refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Push failed')
+      setError(errMsg(err, 'Push failed'))
     }
   }
 
   async function onDelete(adId: string) {
-    if (!window.confirm('Delete this advertisement?')) return
+    if (!window.confirm('Delete this advertisement here? (It stays on any client it was already pushed to -- hide it and push first if it should disappear there.)')) return
     await api.deleteAd(adId)
     refresh()
   }
 
-  function toggleClient(cid: string) {
-    setForm((f) => ({
-      ...f,
-      client_ids: f.client_ids.includes(cid) ? f.client_ids.filter((x) => x !== cid) : [...f.client_ids, cid],
-    }))
-  }
+  const toggleIn = (list: string[], cid: string) => (list.includes(cid) ? list.filter((x) => x !== cid) : [...list, cid])
 
   return (
     <div>
+      <p style={{ fontSize: 12.5, color: color.textMuted, margin: '0 0 14px', maxWidth: 640 }}>
+        Order, text and hidden/shown state are all set here and mirrored to the clients on the next
+        push -- a pushed announcement is read-only on the client's own screen. Hidden items are still
+        pushed (as hidden) so a hide here hides it there too.
+      </p>
+
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 16 }}>
-        <button onClick={onPushAll} className="btn" style={button('success')}>Push All Active</button>
+        <button onClick={onPushAll} className="btn" style={button('success')}>Push All</button>
         <button onClick={() => setShowForm(!showForm)} className="btn" style={button('primary')}>
           {showForm ? 'Cancel' : '+ New Ad'}
         </button>
@@ -147,7 +210,7 @@ function AnnouncementsTab({
                 <input value={form.text} onChange={(e) => setForm({ ...form, text: e.target.value })} required style={input()} />
               </div>
             </div>
-            <ClientPicker clients={clients} selected={form.client_ids} onToggle={toggleClient} />
+            <ClientPicker clients={clients} selected={form.client_ids} onToggle={(cid) => setForm((f) => ({ ...f, client_ids: toggleIn(f.client_ids, cid) }))} />
             <button type="submit" className="btn" style={{ ...button('primary'), marginTop: 14 }}>Create</button>
           </form>
         </div>
@@ -157,32 +220,71 @@ function AnnouncementsTab({
         <table style={table()}>
           <thead>
             <tr>
+              <th style={{ ...th(), width: 70 }}>Order</th>
               <th style={th()}>Tag</th>
               <th style={th()}>Text</th>
-              <th style={th()}>Active</th>
+              <th style={th()}>Status</th>
               <th style={th()}>Targeted Clients</th>
               <th style={th()}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {ads.map((ad) => (
-              <tr key={ad.id} className="tr" style={{ borderBottom: `1px solid ${color.border}` }}>
-                <td style={td()}>{ad.tag && <span style={badge('info')}>{ad.tag}</span>}</td>
-                <td style={td()}>{ad.text}</td>
-                <td style={td({ color: ad.is_active ? color.success : color.danger, fontWeight: 500 })}>{ad.is_active ? 'Yes' : 'No'}</td>
-                <td style={td({ fontSize: 11 })}>
-                  <TargetChips assignments={ad.assignments} clientName={clientName} />
-                </td>
-                <td style={td()}>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button onClick={() => onPush(ad.id)} className="btn" style={button('success', 'sm')}>Push</button>
-                    <button onClick={() => onDelete(ad.id)} className="btn" style={button('danger', 'sm')}>Delete</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-            {ads.length === 0 && (
-              <tr><td colSpan={5} style={td({ padding: 26, textAlign: 'center', color: color.textMuted })}>No advertisements yet.</td></tr>
+            {sorted.map((ad, i) => {
+              const editing = editingId === ad.id
+              return (
+                <tr key={ad.id} className="tr" style={{ borderBottom: `1px solid ${color.border}`, opacity: ad.is_active ? 1 : 0.6, verticalAlign: 'top' }}>
+                  <td style={td()}>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button onClick={() => onMove(ad, -1)} disabled={i === 0} className="btn" style={iconButton} title="Move up">↑</button>
+                      <button onClick={() => onMove(ad, 1)} disabled={i === sorted.length - 1} className="btn" style={iconButton} title="Move down">↓</button>
+                    </div>
+                  </td>
+                  <td style={td()}>
+                    {editing ? (
+                      <input value={edit.tag} onChange={(e) => setEdit({ ...edit, tag: e.target.value })} placeholder="Tag" style={input({ width: 100 })} />
+                    ) : (
+                      ad.tag && <span style={badge('info')}>{ad.tag}</span>
+                    )}
+                  </td>
+                  <td style={td()}>
+                    {editing ? (
+                      <input value={edit.text} onChange={(e) => setEdit({ ...edit, text: e.target.value })} style={input({ minWidth: 320 })} />
+                    ) : (
+                      ad.text
+                    )}
+                  </td>
+                  <td style={td()}>
+                    <span style={badge(ad.is_active ? 'success' : 'warning')}>{ad.is_active ? 'Shown' : 'Hidden'}</span>
+                  </td>
+                  <td style={td({ fontSize: 11 })}>
+                    {editing ? (
+                      <ClientPicker clients={clients} selected={edit.client_ids} onToggle={(cid) => setEdit((f) => ({ ...f, client_ids: toggleIn(f.client_ids, cid) }))} />
+                    ) : (
+                      <TargetChips assignments={ad.assignments} clientName={clientName} />
+                    )}
+                  </td>
+                  <td style={td()}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {editing ? (
+                        <>
+                          <button onClick={() => onSaveEdit(ad.id)} className="btn" style={button('primary', 'sm')}>Save</button>
+                          <button onClick={() => setEditingId(null)} className="btn" style={button('secondary', 'sm')}>Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => startEdit(ad)} className="btn" style={button('secondary', 'sm')}>Edit</button>
+                          <button onClick={() => onToggleActive(ad)} className="btn" style={button('secondary', 'sm')}>{ad.is_active ? 'Hide' : 'Show'}</button>
+                          <button onClick={() => onPush(ad.id)} className="btn" style={button('success', 'sm')}>Push</button>
+                          <button onClick={() => onDelete(ad.id)} className="btn" style={button('danger', 'sm')}>Delete</button>
+                        </>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
+            {sorted.length === 0 && (
+              <tr><td colSpan={6} style={td({ padding: 26, textAlign: 'center', color: color.textMuted })}>No advertisements yet.</td></tr>
             )}
           </tbody>
         </table>
@@ -192,6 +294,8 @@ function AnnouncementsTab({
 }
 
 // ── Video Banner ────────────────────────────────────────────────────
+
+const emptyVideoForm = { video_url: '', label: 'Default', slot: 'login' as VideoSlot, client_ids: [] as string[] }
 
 function VideoBannerTab({
   videos, clients, clientName, setError, setPushResult, refresh,
@@ -204,7 +308,11 @@ function VideoBannerTab({
   refresh: () => void
 }) {
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ video_url: '', label: 'Default', slot: 'login' as VideoSlot, client_ids: [] as string[] })
+  const [form, setForm] = useState({ ...emptyVideoForm })
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [edit, setEdit] = useState({ ...emptyVideoForm })
+
+  const toggleIn = (list: string[], cid: string) => (list.includes(cid) ? list.filter((x) => x !== cid) : [...list, cid])
 
   async function onCreate(e: FormEvent) {
     e.preventDefault()
@@ -212,10 +320,36 @@ function VideoBannerTab({
     try {
       await api.createVideo(form)
       setShowForm(false)
-      setForm({ video_url: '', label: 'Default', slot: 'login', client_ids: [] })
+      setForm({ ...emptyVideoForm })
       refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed')
+      setError(errMsg(err, 'Failed'))
+    }
+  }
+
+  function startEdit(v: VideoSetting) {
+    setEditingId(v.id)
+    setEdit({ video_url: v.video_url ?? '', label: v.label, slot: v.slot, client_ids: v.assignments.map((a) => a.client_id) })
+  }
+
+  async function onSaveEdit(videoId: string) {
+    setError('')
+    try {
+      await api.updateVideo(videoId, { video_url: edit.video_url || null, label: edit.label, slot: edit.slot, client_ids: edit.client_ids })
+      setEditingId(null)
+      refresh()
+    } catch (err) {
+      setError(errMsg(err, 'Failed to save'))
+    }
+  }
+
+  async function onToggleActive(v: VideoSetting) {
+    setError('')
+    try {
+      await api.updateVideo(v.id, { is_active: !v.is_active })
+      refresh()
+    } catch (err) {
+      setError(errMsg(err, 'Failed to update'))
     }
   }
 
@@ -225,15 +359,36 @@ function VideoBannerTab({
       setPushResult(await api.pushVideo(videoId))
       refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Push failed')
+      setError(errMsg(err, 'Push failed'))
     }
   }
 
-  function toggleClient(cid: string) {
-    setForm((f) => ({
-      ...f,
-      client_ids: f.client_ids.includes(cid) ? f.client_ids.filter((x) => x !== cid) : [...f.client_ids, cid],
-    }))
+  async function onDelete(videoId: string) {
+    if (!window.confirm('Delete this video setting here? (Clients keep whatever was last pushed -- hide it and push first to clear it there.)')) return
+    await api.deleteVideo(videoId)
+    refresh()
+  }
+
+  function videoFields(state: typeof emptyVideoForm, set: (s: typeof emptyVideoForm) => void) {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 14, marginBottom: 14 }}>
+        <div>
+          <label style={fieldLabel()}>Video URL</label>
+          <input value={state.video_url} onChange={(e) => set({ ...state, video_url: e.target.value })} placeholder="https://cdn.example.com/promo.mp4" style={input()} />
+        </div>
+        <div>
+          <label style={fieldLabel()}>Label</label>
+          <input value={state.label} onChange={(e) => set({ ...state, label: e.target.value })} required style={input()} />
+        </div>
+        <div>
+          <label style={fieldLabel()}>Slot</label>
+          <select value={state.slot} onChange={(e) => set({ ...state, slot: e.target.value as VideoSlot })} style={input()}>
+            <option value="login">Login page</option>
+            <option value="app">In-app banner</option>
+          </select>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -241,10 +396,10 @@ function VideoBannerTab({
       <p style={{ fontSize: 12.5, color: color.textMuted, margin: '0 0 14px', maxWidth: 640 }}>
         Sets the promo video URL shown on each client's Login page or in-app banner
         (writes to the matching slot in their <code style={{ fontFamily: font.mono }}>ad_banner_settings</code> row).
-        Each slot pushes independently -- the client itself keeps the same two-slot split. Only the
-        most recently pushed video per client per slot takes effect there, and pushing a URL always
-        clears anything the client uploaded locally for that slot (there's no way to transfer an
-        uploaded file's bytes from here, only to write a link).
+        Each slot pushes independently. Once pushed, that slot is <strong>locked on the client</strong> --
+        they can't change or remove it themselves. Hide a video and push it again to clear the slot
+        on the client and hand it back to them. Pushing a URL always clears anything the client
+        uploaded locally for that slot (there's no way to transfer an uploaded file's bytes from here).
       </p>
 
       <div style={{ background: color.infoSoft, border: `1px solid ${color.info}22`, borderRadius: 8, padding: '12px 16px', marginBottom: 20, maxWidth: 640 }}>
@@ -255,7 +410,7 @@ function VideoBannerTab({
             streams directly — not a file uploaded to this app — so Central Command never sees or checks it.
           </li>
           <li>
-            It plays <strong>muted and looped in a narrow column</strong> — 220px wide on the Login page,
+            It plays <strong>muted and looped in a narrow column</strong> — 480px wide on the Login page,
             150px on every other page — so 720p is more than enough; anything larger just costs bandwidth
             on every page load. A short loop of a few MB is the sweet spot.
           </li>
@@ -281,35 +436,22 @@ function VideoBannerTab({
       {showForm && (
         <div style={card({ padding: 22, marginBottom: 20 })}>
           <form onSubmit={onCreate}>
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: 14, marginBottom: 14 }}>
-              <div>
-                <label style={fieldLabel()}>Video URL</label>
-                <input
-                  value={form.video_url}
-                  onChange={(e) => setForm({ ...form, video_url: e.target.value })}
-                  placeholder="https://cdn.example.com/promo.mp4"
-                  style={input()}
-                />
-              </div>
-              <div>
-                <label style={fieldLabel()}>Label</label>
-                <input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} required style={input()} />
-              </div>
-              <div>
-                <label style={fieldLabel()}>Slot</label>
-                <select
-                  value={form.slot}
-                  onChange={(e) => setForm({ ...form, slot: e.target.value as VideoSlot })}
-                  style={input()}
-                >
-                  <option value="login">Login page</option>
-                  <option value="app">In-app banner</option>
-                </select>
-              </div>
-            </div>
-            <ClientPicker clients={clients} selected={form.client_ids} onToggle={toggleClient} />
+            {videoFields(form, setForm)}
+            <ClientPicker clients={clients} selected={form.client_ids} onToggle={(cid) => setForm((f) => ({ ...f, client_ids: toggleIn(f.client_ids, cid) }))} />
             <button type="submit" className="btn" style={{ ...button('primary'), marginTop: 14 }}>Create</button>
           </form>
+        </div>
+      )}
+
+      {editingId && (
+        <div style={card({ padding: 22, marginBottom: 20 })}>
+          <h3 style={{ margin: '0 0 12px', fontSize: 14 }}>Edit video</h3>
+          {videoFields(edit, setEdit)}
+          <ClientPicker clients={clients} selected={edit.client_ids} onToggle={(cid) => setEdit((f) => ({ ...f, client_ids: toggleIn(f.client_ids, cid) }))} />
+          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+            <button onClick={() => onSaveEdit(editingId)} className="btn" style={button('primary')}>Save</button>
+            <button onClick={() => setEditingId(null)} className="btn" style={button('secondary')}>Cancel</button>
+          </div>
         </div>
       )}
 
@@ -320,7 +462,7 @@ function VideoBannerTab({
               <th style={th()}>Label</th>
               <th style={th()}>Slot</th>
               <th style={th()}>Video URL</th>
-              <th style={th()}>Active</th>
+              <th style={th()}>Status</th>
               <th style={th()}>Targeted Clients</th>
               <th style={th()}>Created</th>
               <th style={th()}>Actions</th>
@@ -328,7 +470,7 @@ function VideoBannerTab({
           </thead>
           <tbody>
             {videos.map((v) => (
-              <tr key={v.id} className="tr" style={{ borderBottom: `1px solid ${color.border}` }}>
+              <tr key={v.id} className="tr" style={{ borderBottom: `1px solid ${color.border}`, opacity: v.is_active ? 1 : 0.6 }}>
                 <td style={td({ fontWeight: 500 })}>{v.label}</td>
                 <td style={td()}>{v.slot === 'app' ? 'In-app banner' : 'Login page'}</td>
                 <td style={td({ maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })}>
@@ -338,13 +480,20 @@ function VideoBannerTab({
                     <span style={{ color: color.textFaint }}>(cleared)</span>
                   )}
                 </td>
-                <td style={td({ color: v.is_active ? color.success : color.danger, fontWeight: 500 })}>{v.is_active ? 'Yes' : 'No'}</td>
+                <td style={td()}>
+                  <span style={badge(v.is_active ? 'success' : 'warning')}>{v.is_active ? 'Shown' : 'Hidden'}</span>
+                </td>
                 <td style={td({ fontSize: 11 })}>
                   <TargetChips assignments={v.assignments} clientName={clientName} />
                 </td>
                 <td style={td({ color: color.textMuted })}>{formatDateTime(v.created_at)}</td>
                 <td style={td()}>
-                  <button onClick={() => onPush(v.id)} className="btn" style={button('success', 'sm')}>Push</button>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button onClick={() => startEdit(v)} className="btn" style={button('secondary', 'sm')}>Edit</button>
+                    <button onClick={() => onToggleActive(v)} className="btn" style={button('secondary', 'sm')}>{v.is_active ? 'Hide' : 'Show'}</button>
+                    <button onClick={() => onPush(v.id)} className="btn" style={button('success', 'sm')} title={v.is_active ? 'Push this URL' : 'Push as cleared (releases the slot to the client)'}>Push</button>
+                    <button onClick={() => onDelete(v.id)} className="btn" style={button('danger', 'sm')}>Delete</button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -357,4 +506,3 @@ function VideoBannerTab({
     </div>
   )
 }
-
