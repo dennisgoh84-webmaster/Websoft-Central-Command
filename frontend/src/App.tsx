@@ -8,9 +8,9 @@ import ClientDetailPage from './pages/ClientDetailPage'
 import AdvertisementsPage from './pages/AdvertisementsPage'
 import ConfigUpdatesPage from './pages/ConfigUpdatesPage'
 import VersionControlPage from './pages/VersionControlPage'
+import { VersionManagementPage } from './pages/VersionManagementPage'
 import StaffPage from './pages/StaffPage'
 import SystemMailPage from './pages/SystemMailPage'
-import VersionManagementPage from './pages/VersionManagementPage'
 import CcUpgradePage from './pages/CcUpgradePage'
 
 export default function App() {

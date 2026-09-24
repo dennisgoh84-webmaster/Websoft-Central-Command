@@ -11,6 +11,7 @@ use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\SystemMailController;
 use App\Http\Controllers\VersionController;
+use App\Http\Controllers\VersionManagementController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -89,6 +90,16 @@ Route::middleware('cc.auth')->group(function () {
         Route::get('/upgrade-logs', [VersionController::class, 'upgradeLogs']);
         Route::patch('/{versionId}', [VersionController::class, 'update']);
         Route::delete('/{versionId}', [VersionController::class, 'destroy']);
+    });
+
+    // ── Version Management (Upgrade/Rollback) ────────────────────────
+    Route::prefix('version-management')->group(function () {
+        Route::get('/clients', [VersionManagementController::class, 'listClientVersions']);
+        Route::get('/clients/{clientId}/info', [VersionManagementController::class, 'getUpgradeInfo']);
+        Route::get('/clients/{clientId}/history', [VersionManagementController::class, 'getVersionHistory']);
+        Route::get('/clients/{clientId}/backups', [VersionManagementController::class, 'getBackupHistory']);
+        Route::post('/clients/{clientId}/upgrade', [VersionManagementController::class, 'upgrade']);
+        Route::post('/clients/{clientId}/rollback', [VersionManagementController::class, 'rollback']);
     });
 
     // ── System Mail Settings ─────────────────────────────────────────

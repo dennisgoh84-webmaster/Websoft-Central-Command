@@ -207,6 +207,54 @@ export interface UpgradeLog {
   upgraded_by: string | null
 }
 
+export interface UpgradeInfo {
+  current_version: string | null
+  latest_available: string | null
+  can_upgrade: boolean
+  latest_release: {
+    version: string | null
+    name: string
+    url: string | null
+    published_at: string | null
+    prerelease: boolean
+    draft: boolean
+    release_notes: string
+    download_url: string | null
+  }
+  previous_version: string | null
+  can_rollback: boolean
+}
+
+export interface VersionHistory {
+  id: string
+  version: string
+  status: 'current' | 'previous' | 'failed'
+  deployed_at: string
+  deployed_by: string | null
+  release_notes: string | null
+}
+
+export interface UpgradeBackup {
+  id: string
+  from_version: string
+  to_version: string
+  status: 'pending' | 'completed' | 'failed' | 'restored'
+  backup_size_bytes: number | null
+  backup_path: string
+  created_at: string
+  completed_at: string | null
+  restored_at: string | null
+  error_message: string | null
+}
+
+export interface ClientVersionDetail {
+  client_id: string
+  client_name: string
+  upgrade_info: UpgradeInfo
+  upgraded_at: string
+  upgraded_by: string | null
+}
+
 // ── Staff / Support Logins ───────────────────────────────────────
 export interface SupportLogin {
   id: string
@@ -457,4 +505,28 @@ export const api = {
     }),
   rollbackCc: () =>
     request<{ success: boolean; message: string; current_version: string }>('/cc-upgrade/rollback', { method: 'POST' }),
+
+  // Version Management (Upgrade/Rollback)
+  listClientVersions: () =>
+    request<{ clients: ClientVersionDetail[] }>('/version-management/clients'),
+  getUpgradeInfo: (clientId: string) =>
+    request<{ client_id: string; client_name: string; upgrade_info: UpgradeInfo }>(
+      `/version-management/clients/${clientId}/info`
+    ),
+  getVersionHistory: (clientId: string) =>
+    request<{ client_id: string; history: VersionHistory[] }>(`/version-management/clients/${clientId}/history`),
+  getBackupHistory: (clientId: string) =>
+    request<{ client_id: string; backups: UpgradeBackup[] }>(`/version-management/clients/${clientId}/backups`),
+  upgradeClientInstance: (clientId: string, targetVersion: string) =>
+    request<{ success: boolean; message: string; backup_id?: string }>(
+      `/version-management/clients/${clientId}/upgrade`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ target_version: targetVersion }),
+      }
+    ),
+  rollbackClientInstance: (clientId: string) =>
+    request<{ success: boolean; message: string }>(`/version-management/clients/${clientId}/rollback`, {
+      method: 'POST',
+    }),
 }
