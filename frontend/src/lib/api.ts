@@ -207,54 +207,6 @@ export interface UpgradeLog {
   upgraded_by: string | null
 }
 
-export interface UpgradeInfo {
-  current_version: string | null
-  latest_available: string | null
-  can_upgrade: boolean
-  latest_release: {
-    version: string | null
-    name: string
-    url: string | null
-    published_at: string | null
-    prerelease: boolean
-    draft: boolean
-    release_notes: string
-    download_url: string | null
-  }
-  previous_version: string | null
-  can_rollback: boolean
-}
-
-export interface VersionHistory {
-  id: string
-  version: string
-  status: 'current' | 'previous' | 'failed'
-  deployed_at: string
-  deployed_by: string | null
-  release_notes: string | null
-}
-
-export interface UpgradeBackup {
-  id: string
-  from_version: string
-  to_version: string
-  status: 'pending' | 'completed' | 'failed' | 'restored'
-  backup_size_bytes: number | null
-  backup_path: string
-  created_at: string
-  completed_at: string | null
-  restored_at: string | null
-  error_message: string | null
-}
-
-export interface ClientVersionDetail {
-  client_id: string
-  client_name: string
-  upgrade_info: UpgradeInfo
-  upgraded_at: string
-  upgraded_by: string | null
-}
-
 // ── Staff / Support Logins ───────────────────────────────────────
 export interface SupportLogin {
   id: string
@@ -269,28 +221,54 @@ export interface SupportLogin {
   revoked_at: string | null
 }
 
-// ── Central Command Upgrade ──────────────────────────────────────────
-export interface CcVersionInfo {
-  current_version: string | null
-  current_status: string
-  last_upgraded_at: string | null
+// ── Upgrades (Central Command itself, and each client) ──────────────
+// Shape shared by GET /cc-upgrade/status and /version-management/clients/{id}
+// -- see backend App\Support\UpgradeStatus. Nothing here runs an upgrade:
+// a request is queued and the install's own host agent performs it.
+export interface UpgradeAgentState {
+  current_sha: string | null
+  current_subject: string | null
+  current_committed_at: string | null
+  remote_sha: string | null
+  remote_subject: string | null
+  remote_committed_at: string | null
+  commits_behind: number
+  agent_host: string | null
+  last_heartbeat_at: string | null
 }
 
-export interface CcUpgradeCheckInfo {
-  can_upgrade: boolean
-  current_version: string | null
-  latest_version: string | null
-  reason: string | null
-}
-
-export interface CcVersionHistoryEntry {
+export interface UpgradeRequest {
   id: string
-  version: string
+  kind: 'upgrade' | 'rollback'
+  target_ref: string
+  status: 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+  requested_by: string | null
+  requested_at: string
+  started_at: string | null
+  finished_at: string | null
+  from_sha: string | null
+  to_sha: string | null
+  log: string | null
+  error: string | null
+}
+
+export interface UpgradeStatus {
+  supported: boolean
+  message: string | null
+  agent: UpgradeAgentState | null
+  agent_online: boolean
+  active: UpgradeRequest | null
+  history: UpgradeRequest[]
+  can_upgrade: boolean
+  can_rollback: boolean
+  rollback_to: string | null
+}
+
+export interface ClientUpgradeListItem {
+  id: string
+  name: string
+  code: string
   status: string
-  release_notes: string | null
-  error_message: string | null
-  upgraded_at: string
-  created_at: string
 }
 
 // ── API methods ──────────────────────────────────────────────────────
@@ -494,39 +472,20 @@ export const api = {
   addSupportStaff: (data: { username: string; full_name: string; email: string; password: string }) =>
     request<AdminUser>('/staff/support-logins', { method: 'POST', body: JSON.stringify(data) }),
 
-  // Central Command Upgrade
-  getCcVersion: () => request<CcVersionInfo>('/cc-upgrade/version'),
-  checkCcUpgrade: () => request<CcUpgradeCheckInfo>('/cc-upgrade/check'),
-  getCcVersionHistory: () => request<CcVersionHistoryEntry[]>('/cc-upgrade/history'),
-  upgradeCc: (targetVersion: string) =>
-    request<{ success: boolean; message: string; new_version: string }>('/cc-upgrade/upgrade', {
-      method: 'POST',
-      body: JSON.stringify({ target_version: targetVersion }),
-    }),
-  rollbackCc: () =>
-    request<{ success: boolean; message: string; current_version: string }>('/cc-upgrade/rollback', { method: 'POST' }),
+  // Upgrades -- Central Command itself
+  getCcUpgradeStatus: () => request<UpgradeStatus>('/cc-upgrade/status'),
+  requestCcUpgrade: () => request<UpgradeStatus>('/cc-upgrade/upgrade', { method: 'POST' }),
+  requestCcRollback: () => request<UpgradeStatus>('/cc-upgrade/rollback', { method: 'POST' }),
+  cancelCcUpgrade: (requestId: string) =>
+    request<UpgradeStatus>(`/cc-upgrade/requests/${requestId}/cancel`, { method: 'POST' }),
 
-  // Version Management (Upgrade/Rollback)
-  listClientVersions: () =>
-    request<{ clients: ClientVersionDetail[] }>('/version-management/clients'),
-  getUpgradeInfo: (clientId: string) =>
-    request<{ client_id: string; client_name: string; upgrade_info: UpgradeInfo }>(
-      `/version-management/clients/${clientId}/info`
-    ),
-  getVersionHistory: (clientId: string) =>
-    request<{ client_id: string; history: VersionHistory[] }>(`/version-management/clients/${clientId}/history`),
-  getBackupHistory: (clientId: string) =>
-    request<{ client_id: string; backups: UpgradeBackup[] }>(`/version-management/clients/${clientId}/backups`),
-  upgradeClientInstance: (clientId: string, targetVersion: string) =>
-    request<{ success: boolean; message: string; backup_id?: string }>(
-      `/version-management/clients/${clientId}/upgrade`,
-      {
-        method: 'POST',
-        body: JSON.stringify({ target_version: targetVersion }),
-      }
-    ),
-  rollbackClientInstance: (clientId: string) =>
-    request<{ success: boolean; message: string }>(`/version-management/clients/${clientId}/rollback`, {
-      method: 'POST',
-    }),
+  // Upgrades -- client installs
+  listClientUpgrades: () => request<ClientUpgradeListItem[]>('/version-management/clients'),
+  getClientUpgradeStatus: (clientId: string) => request<UpgradeStatus>(`/version-management/clients/${clientId}`),
+  requestClientUpgrade: (clientId: string) =>
+    request<UpgradeStatus>(`/version-management/clients/${clientId}/upgrade`, { method: 'POST' }),
+  requestClientRollback: (clientId: string) =>
+    request<UpgradeStatus>(`/version-management/clients/${clientId}/rollback`, { method: 'POST' }),
+  cancelClientUpgrade: (clientId: string, requestId: string) =>
+    request<UpgradeStatus>(`/version-management/clients/${clientId}/requests/${requestId}/cancel`, { method: 'POST' }),
 }

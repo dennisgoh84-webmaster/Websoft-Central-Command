@@ -8,6 +8,8 @@ use App\Models\SystemMailSetting;
 use App\Support\ClientDbException;
 use Illuminate\Encryption\Encrypter;
 use Illuminate\Support\Carbon;
+use App\Support\UpgradeStatus;
+use Illuminate\Support\Str;
 use PDO;
 use PDOException;
 use Throwable;
@@ -29,7 +31,9 @@ class ClientDbService
     {
         $sslMode = $client->db_use_tls ? 'require' : 'prefer';
         $dsn = sprintf(
-            'pgsql:host=%s;port=%d;dbname=%s;sslmode=%s',
+            // connect_timeout: an unreachable client must fail in
+            // seconds, not hang the request until the OS gives up.
+            'pgsql:host=%s;port=%d;dbname=%s;sslmode=%s;connect_timeout=5',
             $client->db_host,
             $client->db_port,
             $client->db_name,
@@ -478,5 +482,103 @@ class ClientDbService
     private function pgBool(mixed $value): bool
     {
         return $value === true || $value === 't' || $value === '1' || $value === 1;
+    }
+
+    // ── Remote upgrades (schema contract §1b) ──────────────────────
+
+    private const UPGRADE_UNSUPPORTED = "This client's install does not have remote-upgrade support yet (tables upgrade_requests / upgrade_agent_state missing). Upgrade it once by hand on its server with ./deploy/upgrade.sh -- every upgrade after that can be started from here.";
+
+    private function hasUpgradeTables(PDO $pdo): bool
+    {
+        return (bool) $pdo->query("SELECT to_regclass('public.upgrade_requests') IS NOT NULL AND to_regclass('public.upgrade_agent_state') IS NOT NULL")->fetchColumn();
+    }
+
+    /** @return array<string, mixed> the row with its timestamps as ISO-8601 strings */
+    private function isoRow(array $row): array
+    {
+        foreach ($row as $k => $v) {
+            if (is_string($v) && (str_ends_with($k, '_at')) && $v !== '') {
+                $row[$k] = Carbon::parse($v)->toISOString();
+            }
+        }
+        if (array_key_exists('commits_behind', $row)) {
+            $row['commits_behind'] = (int) $row['commits_behind'];
+        }
+
+        return $row;
+    }
+
+    /** What a client's host agent last reported plus its request queue, in the shape App\Support\UpgradeStatus defines. */
+    public function readUpgradeStatus(Client $client): array
+    {
+        try {
+            $pdo = $this->connect($client);
+            if (! $this->hasUpgradeTables($pdo)) {
+                return UpgradeStatus::unsupported(self::UPGRADE_UNSUPPORTED);
+            }
+
+            $agent = $pdo->query('SELECT * FROM upgrade_agent_state WHERE id = 1')->fetch(PDO::FETCH_ASSOC) ?: null;
+            $active = $pdo->query("SELECT * FROM upgrade_requests WHERE status IN ('pending','running') ORDER BY requested_at LIMIT 1")->fetch(PDO::FETCH_ASSOC) ?: null;
+            $history = $pdo->query('SELECT * FROM upgrade_requests ORDER BY requested_at DESC LIMIT 20')->fetchAll(PDO::FETCH_ASSOC);
+
+            return UpgradeStatus::shape(
+                $agent ? $this->isoRow($agent) : null,
+                $active ? $this->isoRow($active) : null,
+                array_map($this->isoRow(...), $history),
+            );
+        } catch (ClientDbException $e) {
+            throw $e;
+        } catch (Throwable $e) {
+            throw new ClientDbException($e->getMessage(), 0, $e);
+        }
+    }
+
+    /** Queue an upgrade or rollback for the client's own host agent to perform. */
+    public function requestUpgrade(Client $client, string $kind, string $targetRef, string $adminId): array
+    {
+        try {
+            $pdo = $this->connect($client);
+            if (! $this->hasUpgradeTables($pdo)) {
+                throw new \RuntimeException(self::UPGRADE_UNSUPPORTED);
+            }
+            $active = $pdo->query("SELECT 1 FROM upgrade_requests WHERE status IN ('pending','running') LIMIT 1")->fetchColumn();
+            if ($active) {
+                throw new \RuntimeException('An upgrade is already pending or running on this client.');
+            }
+
+            $id = (string) Str::uuid();
+            $stmt = $pdo->prepare(<<<'SQL'
+                INSERT INTO upgrade_requests (id, kind, target_ref, status, requested_by, requested_at)
+                VALUES (:id, :kind, :target_ref, 'pending', :requested_by, NOW())
+            SQL);
+            $stmt->execute(['id' => $id, 'kind' => $kind, 'target_ref' => $targetRef, 'requested_by' => "central-command:{$adminId}"]);
+
+            $client->last_connected_at = Carbon::now();
+            $client->save();
+            $this->logPush($client, 'version', ucfirst($kind).' requested to '.substr($targetRef, 0, 12), true, pushedBy: $adminId);
+
+            return ['success' => true, 'request_id' => $id];
+        } catch (Throwable $e) {
+            $this->logPush($client, 'version', ucfirst($kind).' request failed', false, $e->getMessage(), $adminId);
+            throw new ClientDbException($e->getMessage(), 0, $e);
+        }
+    }
+
+    /** Withdraw a request the client's agent has not picked up yet. */
+    public function cancelUpgradeRequest(Client $client, string $requestId, string $adminId): array
+    {
+        try {
+            $pdo = $this->connect($client);
+            $stmt = $pdo->prepare("UPDATE upgrade_requests SET status = 'cancelled', finished_at = NOW() WHERE id = :id AND status = 'pending'");
+            $stmt->execute(['id' => $requestId]);
+            if ($stmt->rowCount() === 0) {
+                throw new \RuntimeException('Only a request the agent has not picked up yet can be cancelled.');
+            }
+            $this->logPush($client, 'version', 'Upgrade request cancelled', true, pushedBy: $adminId);
+
+            return ['success' => true];
+        } catch (Throwable $e) {
+            throw new ClientDbException($e->getMessage(), 0, $e);
+        }
     }
 }

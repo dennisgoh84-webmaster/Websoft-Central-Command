@@ -28,6 +28,9 @@
 #      (see backend/app/Console/Commands/CentralCommandInstall.php),
 #      so this is what upgrades an already-running install
 #   7. Waits for the backend to report healthy, then runs the smoke test
+#   8. Installs/refreshes the upgrade-agent systemd timer, so every
+#      upgrade AFTER this one can be started from the CC Upgrade screen
+#      (scripts/upgrade-agent.sh) -- this is the last manual deploy
 #
 # If anything fails after step 5, the database backup from that step is
 # left in place and the script prints how to restore it.
@@ -106,6 +109,7 @@ fill_secret_if_blank() {
 fill_secret_if_blank CC_POSTGRES_PASSWORD "$(openssl rand -hex 24)"
 fill_secret_if_blank CC_JWT_SECRET_KEY "$(openssl rand -hex 32)"
 fill_secret_if_blank CC_APP_KEY "base64:$(openssl rand -base64 32)"
+fill_secret_if_blank CC_UPGRADE_AGENT_TOKEN "$(openssl rand -hex 32)"
 
 # shellcheck disable=SC1091
 set -a; . ./.env; set +a
@@ -195,3 +199,7 @@ fi
 echo "  Backup:    $BACKUP_FILE"
 echo "  Logs:      cd $INSTALL_DIR && docker compose logs -f cc-backend"
 echo "  Next time: re-run this same script to pull and deploy future updates"
+
+# 8. Remote upgrades from now on -------------------------------------------
+say "Enabling upgrades from the CC Upgrade screen"
+./scripts/install-upgrade-agent.sh || echo "  (agent timer not installed -- see above; re-run scripts/install-upgrade-agent.sh with sudo)"

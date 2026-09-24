@@ -63,9 +63,17 @@ fi
 say "Fetching and checking out target"
 git fetch origin
 if [ -n "$TARGET_REF" ]; then
-  git checkout "$TARGET_REF"
+  # Detached at the exact commit -- what the upgrade agent asks for, and
+  # what makes a rollback to an older commit possible.
+  git checkout --detach "$TARGET_REF"
 else
-  git pull origin "$PREV_REF"
+  # A manual upgrade goes back onto main first if an agent-driven one
+  # left HEAD detached.
+  if [ "$PREV_REF" = "HEAD" ]; then
+    git checkout main
+    PREV_REF=main
+  fi
+  git pull --ff-only origin "$PREV_REF"
 fi
 NEW_COMMIT=$(git rev-parse HEAD)
 echo "Now at $NEW_COMMIT"
@@ -130,6 +138,9 @@ To restore it:
 EOM
   exit 1
 fi
+
+# New code may carry a newer agent script or need the token generated.
+./scripts/install-upgrade-agent.sh || echo "  (agent timer not refreshed -- see above)"
 
 say "Upgrade complete"
 echo "  $PREV_COMMIT -> $NEW_COMMIT"

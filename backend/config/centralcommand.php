@@ -29,6 +29,10 @@ return [
     // docs/central-command-schema-contract.md.
     'min_client_migration_head' => env('CC_MIN_CLIENT_MIGRATION_HEAD'),
 
+    // Shared secret for the host-side upgrade agent (scripts/upgrade-agent.sh),
+    // sent as X-Upgrade-Agent-Token. Empty = agent endpoints disabled (503).
+    'upgrade_agent_token' => env('CC_UPGRADE_AGENT_TOKEN'),
+
     // Origins allowed to call the API with credentials (dev frontend server).
     'cors_allowed_origins' => ['http://localhost:5174'],
 ];

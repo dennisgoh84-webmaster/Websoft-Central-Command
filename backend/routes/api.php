@@ -32,6 +32,13 @@ Route::prefix('auth')->group(function () {
     Route::get('/me', [AuthController::class, 'me'])->middleware('cc.auth');
 });
 
+// Called only by scripts/upgrade-agent.sh on this server's own host,
+// authenticated by X-Upgrade-Agent-Token (see CcUpgradeController).
+Route::prefix('cc-upgrade/agent')->group(function () {
+    Route::post('/heartbeat', [CcUpgradeController::class, 'heartbeat']);
+    Route::post('/report', [CcUpgradeController::class, 'report']);
+});
+
 Route::middleware('cc.auth')->group(function () {
     // ── Dashboard ────────────────────────────────────────────────────
     Route::get('/dashboard/', [DashboardController::class, 'index']);
@@ -94,12 +101,11 @@ Route::middleware('cc.auth')->group(function () {
 
     // ── Version Management (Upgrade/Rollback) ────────────────────────
     Route::prefix('version-management')->group(function () {
-        Route::get('/clients', [VersionManagementController::class, 'listClientVersions']);
-        Route::get('/clients/{clientId}/info', [VersionManagementController::class, 'getUpgradeInfo']);
-        Route::get('/clients/{clientId}/history', [VersionManagementController::class, 'getVersionHistory']);
-        Route::get('/clients/{clientId}/backups', [VersionManagementController::class, 'getBackupHistory']);
+        Route::get('/clients', [VersionManagementController::class, 'index']);
+        Route::get('/clients/{clientId}', [VersionManagementController::class, 'show']);
         Route::post('/clients/{clientId}/upgrade', [VersionManagementController::class, 'upgrade']);
         Route::post('/clients/{clientId}/rollback', [VersionManagementController::class, 'rollback']);
+        Route::post('/clients/{clientId}/requests/{requestId}/cancel', [VersionManagementController::class, 'cancel']);
     });
 
     // ── System Mail Settings ─────────────────────────────────────────
@@ -130,10 +136,9 @@ Route::middleware('cc.auth')->group(function () {
 
     // ── Central Command Upgrade ──────────────────────────────────────
     Route::prefix('cc-upgrade')->group(function () {
-        Route::get('/version', [CcUpgradeController::class, 'getVersion']);
-        Route::get('/check', [CcUpgradeController::class, 'checkUpgrade']);
-        Route::get('/history', [CcUpgradeController::class, 'getVersionHistory']);
+        Route::get('/status', [CcUpgradeController::class, 'status']);
         Route::post('/upgrade', [CcUpgradeController::class, 'upgrade']);
         Route::post('/rollback', [CcUpgradeController::class, 'rollback']);
+        Route::post('/requests/{requestId}/cancel', [CcUpgradeController::class, 'cancel']);
     });
 });

@@ -10,7 +10,7 @@ const NAV = [
   { to: '/advertisements', label: 'Advertisements', icon: '📢' },
   { to: '/config-updates', label: 'Config Updates', icon: '⚙️' },
   { to: '/versions', label: 'Version Control', icon: '🔄' },
-  { to: '/version-management', label: 'Upgrades & Rollback', icon: '📦' },
+  { to: '/version-management', label: 'Client Upgrades', icon: '📦' },
   { to: '/cc-upgrade', label: 'CC Upgrade', icon: '🚀' },
   { to: '/system-mail', label: 'System Mail', icon: '📧' },
   { to: '/staff', label: 'Staff', icon: '👤' },
