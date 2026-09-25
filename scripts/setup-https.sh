@@ -82,6 +82,10 @@ fi
 # ---- 2. install Caddy (official package repository) ------------------------
 if ! command -v caddy >/dev/null 2>&1; then
   say "Installing Caddy"
+  # No questions mid-install: Ubuntu's needrestart would otherwise stop at a
+  # "Which services should be restarted?" screen. 'a' restarts the same
+  # services it ticks by default (never the SSH session's own).
+  export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a
   apt-get update -qq
   apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https curl gnupg
   curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
