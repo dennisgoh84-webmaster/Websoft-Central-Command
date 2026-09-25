@@ -1,0 +1,156 @@
+#!/usr/bin/env bash
+#
+# Put HTTPS in front of Central Command (and, optionally, the ERP) on
+# this host, using Caddy as a reverse proxy. Run once with sudo; safe to
+# run again to change the sites.
+#
+#   sudo ./scripts/setup-https.sh ADDRESS=PORT [ADDRESS=PORT ...]
+#
+# ADDRESS is where people will open it; PORT is the local HTTP port the
+# app already listens on (CC_HTTP_PORT for Central Command, HTTP_PORT
+# for the ERP).
+#
+#   With a domain name pointed at this server (ports 80 and 443 open to
+#   the internet) -- a free Let's Encrypt certificate, renewed by itself:
+#     sudo ./scripts/setup-https.sh cc.example.com=8082 erp.example.com=8083
+#
+#   With only the server's address (office network, no domain) -- Caddy's
+#   own private certificate; each device trusts it once (printed below):
+#     sudo ./scripts/setup-https.sh 192.168.0.188:8443=8082 192.168.0.188:8444=8083
+#
+#   Preview the configuration without installing or changing anything:
+#     ./scripts/setup-https.sh --dry-run cc.example.com=8082
+#
+# Afterwards, close the plain-HTTP port to everything but this server:
+# set CC_HTTP_BIND=127.0.0.1 in Central Command's .env and run
+# `docker compose up -d` (the upgrade agent talks to 127.0.0.1, so it
+# keeps working). See DEPLOY.md, "HTTPS".
+set -euo pipefail
+
+say()  { printf '\n\033[1m==> %s\033[0m\n' "$*"; }
+warn() { printf '\033[33m    %s\033[0m\n' "$*"; }
+die()  { printf '\n\033[31mERROR: %s\033[0m\n\n' "$*" >&2; exit 1; }
+
+DRY_RUN=0
+if [ "${1:-}" = "--dry-run" ]; then DRY_RUN=1; shift; fi
+[ $# -ge 1 ] || die "Give at least one ADDRESS=PORT, e.g. cc.example.com=8082 -- see the top of this script."
+
+CADDYFILE=/etc/caddy/Caddyfile
+BEGIN='# >>> websoft-https (managed by setup-https.sh -- edit by re-running it)'
+END='# <<< websoft-https'
+
+is_ip() { [[ "$1" =~ ^[0-9]+(\.[0-9]+){3}$ ]] || [[ "$1" == *:*:* ]] || [ "$1" = localhost ]; }
+
+# ---- 1. build the site blocks --------------------------------------------
+BLOCK="$BEGIN"$'\n'
+NEEDED_PORTS=()
+PRIVATE_CA=0
+for arg in "$@"; do
+  [[ "$arg" == *=* ]] || die "\"$arg\" is not ADDRESS=PORT"
+  addr="${arg%=*}"; upstream="${arg##*=}"
+  [[ "$upstream" =~ ^[0-9]+$ ]] || die "\"$upstream\" in \"$arg\" is not a port number"
+  host="${addr%:*}"; listen=""
+  if [[ "$addr" == *:* ]] && [[ "${addr##*:}" =~ ^[0-9]+$ ]]; then listen="${addr##*:}"; else host="$addr"; fi
+
+  if is_ip "$host"; then
+    PRIVATE_CA=1
+    port="${listen:-443}"
+    NEEDED_PORTS+=("$port")
+    BLOCK+="https://$host:$port {"$'\n'"    tls internal"$'\n'
+  else
+    [[ "$host" == *.* ]] || die "\"$host\" is neither a domain name nor an IP address"
+    if [ -n "$listen" ]; then
+      NEEDED_PORTS+=("$listen" 80)
+      BLOCK+="$host:$listen {"$'\n'
+    else
+      NEEDED_PORTS+=(443 80)
+      BLOCK+="$host {"$'\n'
+    fi
+  fi
+  BLOCK+="    encode gzip"$'\n'"    reverse_proxy 127.0.0.1:$upstream"$'\n'"}"$'\n\n'
+done
+BLOCK+="$END"
+
+if [ "$DRY_RUN" -eq 1 ]; then
+  say "Caddy configuration that would be written to $CADDYFILE"
+  echo "$BLOCK"
+  exit 0
+fi
+
+[ "$(id -u)" -eq 0 ] || die "Run with sudo: sudo $0 $*"
+
+# ---- 2. install Caddy (official package repository) ------------------------
+if ! command -v caddy >/dev/null 2>&1; then
+  say "Installing Caddy"
+  apt-get update -qq
+  apt-get install -y -qq debian-keyring debian-archive-keyring apt-transport-https curl gnupg
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+    | gpg --dearmor --yes -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+    > /etc/apt/sources.list.d/caddy-stable.list
+  apt-get update -qq
+  apt-get install -y -qq caddy
+fi
+echo "    $(caddy version)"
+
+# ---- 3. the ports must be free for Caddy -----------------------------------
+say "Checking the ports Caddy needs"
+for p in $(printf '%s\n' "${NEEDED_PORTS[@]}" | sort -un); do
+  holder=$(ss -ltnpH "sport = :$p" 2>/dev/null | grep -v '"caddy"' || true)
+  [ -z "$holder" ] || die "Port $p is already in use by another program:
+$holder
+Free it, or use another address/port (e.g. 192.168.0.188:8443=8082)."
+  echo "    port $p free"
+done
+
+# ---- 4. write the managed block, keep anything else in the Caddyfile ------
+say "Writing $CADDYFILE"
+mkdir -p /etc/caddy
+if [ -f "$CADDYFILE" ] && [ ! -f "$CADDYFILE.before-websoft" ]; then
+  cp "$CADDYFILE" "$CADDYFILE.before-websoft"
+fi
+if [ -f "$CADDYFILE" ] && ! grep -q '/usr/share/caddy' "$CADDYFILE"; then
+  # A real Caddyfile: replace only our own block.
+  OTHER=$(awk -v b="$BEGIN" -v e="$END" '$0==b{skip=1} !skip{print} $0==e{skip=0}' "$CADDYFILE")
+else
+  # Missing, or the package's stock welcome page (which takes port 80).
+  OTHER=""
+fi
+TMP=$(mktemp)
+{ [ -n "$OTHER" ] && printf '%s\n\n' "$OTHER"; printf '%s\n' "$BLOCK"; } > "$TMP"
+if ! caddy validate --adapter caddyfile --config "$TMP" >/dev/null 2>"$TMP.err"; then
+  cat "$TMP.err" >&2; rm -f "$TMP" "$TMP.err"
+  die "Caddy rejected the configuration above -- nothing was changed."
+fi
+install -m 644 "$TMP" "$CADDYFILE"; rm -f "$TMP" "$TMP.err"
+
+# ---- 5. firewall and (re)start ---------------------------------------------
+if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q '^Status: active'; then
+  for p in $(printf '%s\n' "${NEEDED_PORTS[@]}" | sort -un); do ufw allow "$p/tcp" >/dev/null && echo "    firewall: allowed $p/tcp"; done
+fi
+systemctl enable --now caddy >/dev/null 2>&1 || true
+systemctl reload caddy || systemctl restart caddy
+
+say "Done"
+for arg in "$@"; do
+  addr="${arg%=*}"
+  echo "    https://$addr   ->   http://127.0.0.1:${arg##*=}"
+done
+if [ "$PRIVATE_CA" -eq 1 ]; then
+  cat <<NOTE
+
+  These addresses use Caddy's own private certificate. Browsers warn until
+  each device trusts it once: copy this file to the device and install it
+  as a trusted root certificate (iPhone: AirDrop/email it, install the
+  profile, then Settings > General > About > Certificate Trust Settings):
+
+    /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
+NOTE
+fi
+cat <<NEXT
+
+  Then close the plain-HTTP port to everything but this server -- in
+  Central Command's .env set CC_HTTP_BIND=127.0.0.1 and run
+  'docker compose up -d'. The upgrade agent uses 127.0.0.1 and keeps
+  working.
+NEXT

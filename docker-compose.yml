@@ -56,7 +56,10 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     ports:
-      - "${CC_HTTP_PORT:-8080}:80"
+      # CC_HTTP_BIND=127.0.0.1 once HTTPS is in front (scripts/setup-https.sh):
+      # the plain-HTTP port is then reachable from this server only, which is
+      # all the reverse proxy and the upgrade agent need.
+      - "${CC_HTTP_BIND:-0.0.0.0}:${CC_HTTP_PORT:-8080}:80"
     depends_on:
       cc-backend:
         condition: service_healthy
