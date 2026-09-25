@@ -543,7 +543,8 @@ class ClientDbService
             }
             $active = $pdo->query("SELECT 1 FROM upgrade_requests WHERE status IN ('pending','running') LIMIT 1")->fetchColumn();
             if ($active) {
-                throw new \RuntimeException('An upgrade is already pending or running on this client.');
+                // The client answered fine -- this is a conflict, not a connection problem.
+                throw new ClientDbException('An upgrade is already pending or running on this client.', 409);
             }
 
             $id = (string) Str::uuid();
@@ -560,7 +561,7 @@ class ClientDbService
             return ['success' => true, 'request_id' => $id];
         } catch (Throwable $e) {
             $this->logPush($client, 'version', ucfirst($kind).' request failed', false, $e->getMessage(), $adminId);
-            throw new ClientDbException($e->getMessage(), 0, $e);
+            throw $e instanceof ClientDbException ? $e : new ClientDbException($e->getMessage(), 0, $e);
         }
     }
 

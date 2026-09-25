@@ -380,7 +380,7 @@ docker compose exec cc-db psql -U cc_app central_command
 
 | Area | Test server (this runbook) | Before production |
 |---|---|---|
-| OTP delivery | If no email can be sent, the code is returned in the login response and shown on screen | Set up Central Command's email so codes are sent; the on-screen code should then be switched off |
+| OTP delivery | Central Command cannot email yet (`sendOtpEmail` only logs), so the code is always returned in the login response and shown on screen -- the second step adds no protection | Add real email sending for CC's own sign-in codes, then stop returning `_dev_otp` |
 | TLS to the browser | Plain HTTP on `CC_HTTP_PORT` | `sudo ./scripts/setup-https.sh ...` then `CC_HTTP_BIND=127.0.0.1` (see **HTTPS**) |
 | Admin password | `Admin123` seeded | Change on first login; consider removing the default from `CentralCommandInstall` |
 | Config Updates | Raw SQL runs on every active client with no dry run | Add review/approval, per-client preview |

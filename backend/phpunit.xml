@@ -21,6 +21,13 @@
         <env name="APP_ENV" value="testing"/>
         <env name="APP_MAINTENANCE_DRIVER" value="file"/>
         <env name="BCRYPT_ROUNDS" value="4"/>
+        <!-- Two local databases, created once (see tests/README.md):
+             Central Command's own, rebuilt by RefreshDatabase, and a
+             stand-in client ERP database the push tests write to. -->
+        <env name="DB_DATABASE" value="central_command_test" force="true"/>
+        <env name="CC_TEST_CLIENT_DB" value="central_command_test_client" force="true"/>
+        <env name="CC_UPGRADE_AGENT_TOKEN" value="test-agent-token" force="true"/>
+        <env name="CC_MIN_CLIENT_MIGRATION_HEAD" value="" force="true"/>
         <env name="CACHE_STORE" value="array"/>
         <!-- <env name="DB_CONNECTION" value="sqlite"/> -->
         <!-- <env name="DB_DATABASE" value=":memory:"/> -->

@@ -74,7 +74,8 @@ class VersionManagementController extends Controller
 
             return response()->json($this->withAdminNames($this->clientDb->readUpgradeStatus($client)));
         } catch (ClientDbException $e) {
-            throw new ApiException(502, $e->getMessage());
+            // 409: the client refused (one already queued); 502: it could not be reached/read.
+            throw new ApiException($e->getCode() === 409 ? 409 : 502, $e->getMessage());
         }
     }
 
@@ -91,7 +92,8 @@ class VersionManagementController extends Controller
 
             return response()->json($this->withAdminNames($this->clientDb->readUpgradeStatus($client)));
         } catch (ClientDbException $e) {
-            throw new ApiException(502, $e->getMessage());
+            // 409: the client refused (one already queued); 502: it could not be reached/read.
+            throw new ApiException($e->getCode() === 409 ? 409 : 502, $e->getMessage());
         }
     }
 
@@ -104,7 +106,8 @@ class VersionManagementController extends Controller
 
             return response()->json($this->withAdminNames($this->clientDb->readUpgradeStatus($client)));
         } catch (ClientDbException $e) {
-            throw new ApiException(502, $e->getMessage());
+            // 409: the client refused (one already queued); 502: it could not be reached/read.
+            throw new ApiException($e->getCode() === 409 ? 409 : 502, $e->getMessage());
         }
     }
 
