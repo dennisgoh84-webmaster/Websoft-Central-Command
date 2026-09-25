@@ -163,6 +163,27 @@ class CcUpgradeController extends Controller
         ]);
     }
 
+    /**
+     * Live progress while an upgrade runs (2026-09-25): the agent sends the
+     * log so far every few seconds, so the CC Upgrade screen shows the
+     * current step and output as it happens. Only a RUNNING request is
+     * touched; the final report replaces the log with the complete one.
+     */
+    public function progress(Request $request)
+    {
+        $this->requireAgentToken($request);
+        $data = $request->validate([
+            'id' => 'required|uuid',
+            'log' => 'nullable|string|max:200000',
+        ]);
+
+        $updated = CcUpgradeRequest::whereKey($data['id'])
+            ->where('status', CcUpgradeRequest::STATUS_RUNNING)
+            ->update(['log' => $data['log'] ?? null]);
+
+        return response()->json(['updated' => $updated > 0]);
+    }
+
     public function report(Request $request)
     {
         $this->requireAgentToken($request);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { UpgradeRequest, UpgradeStatus } from '../lib/api'
 import { formatDateTime } from '../lib/format'
 import { alert, badge, button, card, color, dismissButton, font, h2, table, td, th, type Tone } from '../lib/theme'
@@ -19,6 +19,23 @@ interface Props {
 
 const short = (sha: string | null | undefined) => (sha ? sha.slice(0, 10) : '—')
 
+// upgrade.sh prints its steps as bold "==> Step" lines; drop the colour codes.
+const cleanLog = (log: string | null | undefined) => (log ?? '').replace(/\x1b\[[0-9;]*m/g, '')
+
+function currentStep(log: string): string {
+  const steps = [...log.matchAll(/^==> (.+)$/gm)]
+  return steps.length ? steps[steps.length - 1][1].trim() : 'Starting'
+}
+
+function elapsed(fromIso: string | null, now: number): string {
+  if (!fromIso) return ''
+  const secs = Math.max(0, Math.floor((now - new Date(fromIso).getTime()) / 1000))
+  const h = Math.floor(secs / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  const s = secs % 60
+  return h > 0 ? `${h}h ${String(m).padStart(2, '0')}m` : m > 0 ? `${m}m ${String(s).padStart(2, '0')}s` : `${s}s`
+}
+
 function statusTone(status: string): Tone {
   switch (status) {
     case 'succeeded': return 'success'
@@ -34,13 +51,21 @@ export default function UpgradeConsole({ load, upgrade, rollback, cancel, canAct
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [openLog, setOpenLog] = useState<string | null>(null)
+  // A failed poll while an upgrade is in flight is expected (the backend
+  // restarts part-way through), so it shows as "reconnecting", not an error.
+  const [reconnecting, setReconnecting] = useState(false)
+  const inFlight = useRef(false)
 
   const refresh = useCallback(async () => {
     try {
-      setStatus(await load())
+      const next = await load()
+      inFlight.current = next.active !== null
+      setStatus(next)
       setError('')
+      setReconnecting(false)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load')
+      if (inFlight.current) setReconnecting(true)
+      else setError(err instanceof Error ? err.message : 'Failed to load')
     }
   }, [load])
 
@@ -50,9 +75,10 @@ export default function UpgradeConsole({ load, upgrade, rollback, cancel, canAct
   // mid-upgrade, so a failed poll is expected and just retried).
   const active = status?.active ?? null
   useEffect(() => {
-    const id = setInterval(refresh, active ? 5000 : 30000)
+    const every = active?.status === 'running' ? 3000 : active ? 5000 : 30000
+    const id = setInterval(refresh, every)
     return () => clearInterval(id)
-  }, [refresh, active])
+  }, [refresh, active?.status, active])
 
   async function act(fn: () => Promise<UpgradeStatus>, confirmText: string) {
     if (!window.confirm(confirmText)) return
@@ -123,27 +149,12 @@ export default function UpgradeConsole({ load, upgrade, rollback, cancel, canAct
       {/* Actions / in-flight */}
       <div style={card({ padding: 18, marginBottom: 16 })}>
         {active ? (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-              <span style={badge(statusTone(active.status))}>{active.status}</span>
-              <strong style={{ fontSize: 13.5 }}>
-                {active.kind === 'rollback' ? 'Rollback' : 'Upgrade'} to <code style={{ fontFamily: font.mono }}>{short(active.target_ref)}</code>
-              </strong>
-              <span style={{ fontSize: 12, color: color.textMuted }}>
-                requested {formatDateTime(active.requested_at)}
-                {active.started_at ? ` · started ${formatDateTime(active.started_at)}` : ' · waiting for the agent'}
-              </span>
-              {active.status === 'pending' && canAct && (
-                <button onClick={() => act(() => cancel(active.id), 'Cancel this request?')} disabled={busy} className="btn" style={{ ...button('secondary', 'sm'), marginLeft: 'auto' }}>Cancel</button>
-              )}
-            </div>
-            {active.status === 'running' && (
-              <p style={{ fontSize: 12.5, color: color.textMuted, margin: '10px 0 0' }}>
-                The host is backing up the database, pulling the code and rebuilding the containers. The
-                API here will be unreachable for a moment while it restarts -- this page keeps polling.
-              </p>
-            )}
-          </div>
+          <LiveRun
+            active={active}
+            reconnecting={reconnecting}
+            onCancel={active.status === 'pending' && canAct ? () => act(() => cancel(active.id), 'Cancel this request?') : undefined}
+            busy={busy}
+          />
         ) : (
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
@@ -218,10 +229,90 @@ function HistoryRow({ r, open, toggle }: { r: UpgradeRequest; open: boolean; tog
       {open && r.log && (
         <tr>
           <td colSpan={6} style={{ padding: 0 }}>
-            <pre style={{ margin: 0, padding: 14, background: '#111827', color: '#e5e7eb', fontFamily: font.mono, fontSize: 11.5, lineHeight: 1.5, maxHeight: 420, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{r.log}</pre>
+            <pre style={{ margin: 0, padding: 14, background: '#111827', color: '#e5e7eb', fontFamily: font.mono, fontSize: 11.5, lineHeight: 1.5, maxHeight: 420, overflow: 'auto', whiteSpace: 'pre-wrap' }}>{cleanLog(r.log)}</pre>
           </td>
         </tr>
       )}
     </>
+  )
+}
+
+/**
+ * The request in flight, live (Dennis, 2026-09-25: "a live running status
+ * so that we know it's running"): a pulsing status, a clock counting up
+ * since it started, the step upgrade.sh is on, and its output so far --
+ * the host agent posts the log every few seconds while it runs.
+ */
+function LiveRun({ active, reconnecting, onCancel, busy }: {
+  active: UpgradeRequest
+  reconnecting: boolean
+  onCancel?: () => void
+  busy: boolean
+}) {
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const running = active.status === 'running'
+  const log = cleanLog(active.log)
+  const lines = log.split('\n')
+  const tail = lines.slice(-400).join('\n')
+  const step = running ? currentStep(log) : 'Waiting for the upgrade agent to pick it up (it checks once a minute)'
+
+  // Keep the log scrolled to the newest line unless the reader scrolled up.
+  const box = useRef<HTMLPreElement>(null)
+  const stick = useRef(true)
+  useEffect(() => {
+    if (box.current && stick.current) box.current.scrollTop = box.current.scrollHeight
+  }, [tail])
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <span className={`live-dot ${running ? 'live-dot-running' : 'live-dot-pending'}`} aria-hidden />
+        <span style={badge(statusTone(active.status))}>{running ? 'Running' : 'Queued'}</span>
+        <strong style={{ fontSize: 13.5 }}>
+          {active.kind === 'rollback' ? 'Rollback' : 'Upgrade'} to <code style={{ fontFamily: font.mono }}>{short(active.target_ref)}</code>
+        </strong>
+        <span style={{ fontFamily: font.mono, fontSize: 13, fontWeight: 600 }}>
+          {elapsed(running ? active.started_at : active.requested_at, now)}
+        </span>
+        <span style={{ fontSize: 12, color: color.textMuted }}>
+          requested {formatDateTime(active.requested_at)}
+          {active.started_at ? ` · started ${formatDateTime(active.started_at)}` : ''}
+        </span>
+        {onCancel && (
+          <button onClick={onCancel} disabled={busy} className="btn" style={{ ...button('secondary', 'sm'), marginLeft: 'auto' }}>Cancel</button>
+        )}
+      </div>
+
+      <p style={{ margin: '12px 0 0', fontSize: 14, fontWeight: 600 }}>
+        {running ? 'Now: ' : ''}{step}
+        {running && <span className="live-ellipsis" aria-hidden />}
+      </p>
+      {reconnecting && (
+        <p style={{ margin: '4px 0 0', fontSize: 12.5, color: color.textMuted }}>
+          Reconnecting… the server is restarting as part of the upgrade; this page keeps checking.
+        </p>
+      )}
+
+      {running && (
+        <pre
+          ref={box}
+          onScroll={(e) => {
+            const el = e.currentTarget
+            stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
+          }}
+          style={{
+            margin: '12px 0 0', padding: 12, background: '#111827', color: '#e5e7eb', borderRadius: 8,
+            fontFamily: font.mono, fontSize: 11.5, lineHeight: 1.5, height: 260, overflow: 'auto', whiteSpace: 'pre-wrap',
+          }}
+        >
+          {tail || 'Waiting for the first output…'}
+        </pre>
+      )}
+    </div>
   )
 }

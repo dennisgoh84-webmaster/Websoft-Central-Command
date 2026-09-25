@@ -37,6 +37,7 @@ Route::prefix('auth')->group(function () {
 Route::prefix('cc-upgrade/agent')->group(function () {
     Route::post('/heartbeat', [CcUpgradeController::class, 'heartbeat']);
     Route::post('/report', [CcUpgradeController::class, 'report']);
+    Route::post('/progress', [CcUpgradeController::class, 'progress']);
 });
 
 Route::middleware('cc.auth')->group(function () {
