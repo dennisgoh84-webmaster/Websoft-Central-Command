@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useRef, useState, type FormEvent } from 'react'
 import { useAuth } from '../lib/AuthContext'
 import { api } from '../lib/api'
 import { alert, button, color, dismissButton, font, input, radius } from '../lib/theme'
@@ -50,6 +50,24 @@ export default function LoginPage() {
     textUnderlineOffset: 2,
   }
   const otpInputStyle = { ...input(), textAlign: 'center' as const, fontSize: 22, letterSpacing: 8, fontWeight: 600 }
+
+  // One request at a time (2026-09-25): emailing a code takes a few
+  // seconds, and a second tap or Enter meanwhile used to sign in again --
+  // a second email with a different code, only one of which would work.
+  const busyRef = useRef(false)
+  const [busy, setBusy] = useState(false)
+  const once = (handler: (e: FormEvent) => Promise<void>) => async (e: FormEvent) => {
+    e.preventDefault()
+    if (busyRef.current) return
+    busyRef.current = true
+    setBusy(true)
+    try {
+      await handler(e)
+    } finally {
+      busyRef.current = false
+      setBusy(false)
+    }
+  }
 
   // ── Login submit ──────────────────────────────────────────────────
   async function onLoginSubmit(e: FormEvent) {
@@ -199,7 +217,7 @@ export default function LoginPage() {
 
         {/* ── Login Form ───────────────────────────────────────────── */}
         {view === 'login' && (
-          <form onSubmit={onLoginSubmit}>
+          <form onSubmit={once(onLoginSubmit)}>
             <div style={{ marginBottom: 14 }}>
               <label style={fieldLabel}>Username</label>
               <input value={username} onChange={(e) => setUsername(e.target.value)} required style={input()} />
@@ -208,7 +226,7 @@ export default function LoginPage() {
               <label style={fieldLabel}>Password</label>
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required style={input()} />
             </div>
-            <button type="submit" className="btn" style={btnStyle}>Sign In</button>
+            <button type="submit" className="btn" style={{ ...btnStyle, opacity: busy ? 0.7 : 1 }} disabled={busy}>{busy ? 'Sending code…' : 'Sign In'}</button>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
               <button type="button" onClick={() => { resetAll(); setView('forgot_password') }} style={linkStyle}>
                 Forgot Password?
@@ -222,7 +240,7 @@ export default function LoginPage() {
 
         {/* ── OTP Verification ─────────────────────────────────────── */}
         {view === 'otp' && (
-          <form onSubmit={onOtpSubmit}>
+          <form onSubmit={once(onOtpSubmit)}>
             {emailSent && (
               <div style={{ ...alert('info'), display: 'block' }}>
                 📧 A 6-digit code has been emailed to <strong>{emailHint || 'your registered email'}</strong>.
@@ -254,7 +272,7 @@ export default function LoginPage() {
                 style={otpInputStyle}
               />
             </div>
-            <button type="submit" className="btn" style={btnStyle}>Verify OTP</button>
+            <button type="submit" className="btn" style={{ ...btnStyle, opacity: busy ? 0.7 : 1 }} disabled={busy}>{busy ? 'Checking…' : 'Verify OTP'}</button>
             <div style={{ marginTop: 14, textAlign: 'center' }}>
               <button type="button" onClick={goBack} style={linkStyle}>← Back to Login</button>
             </div>
@@ -263,7 +281,7 @@ export default function LoginPage() {
 
         {/* ── Forgot Password ──────────────────────────────────────── */}
         {view === 'forgot_password' && (
-          <form onSubmit={onForgotPasswordSubmit}>
+          <form onSubmit={once(onForgotPasswordSubmit)}>
             <p style={{ fontSize: 13, color: color.textMuted, margin: '0 0 18px' }}>
               Enter your username. If an email is registered, we'll send a reset OTP.
             </p>
@@ -271,7 +289,7 @@ export default function LoginPage() {
               <label style={fieldLabel}>Username</label>
               <input value={fpUsername} onChange={(e) => setFpUsername(e.target.value)} required style={input()} />
             </div>
-            <button type="submit" className="btn" style={btnStyle}>Send Reset OTP</button>
+            <button type="submit" className="btn" style={{ ...btnStyle, opacity: busy ? 0.7 : 1 }} disabled={busy}>{busy ? 'Sending code…' : 'Send Reset OTP'}</button>
             <div style={{ marginTop: 14, textAlign: 'center' }}>
               <button type="button" onClick={goBack} style={linkStyle}>← Back to Login</button>
             </div>
@@ -280,7 +298,7 @@ export default function LoginPage() {
 
         {/* ── Reset Password ───────────────────────────────────────── */}
         {view === 'reset_password' && (
-          <form onSubmit={onResetPasswordSubmit}>
+          <form onSubmit={once(onResetPasswordSubmit)}>
             <div style={{ ...alert('info'), display: 'block' }}>
               📧 A reset OTP has been sent to <strong>{fpEmailHint || 'your registered email'}</strong>.
             </div>
@@ -309,7 +327,7 @@ export default function LoginPage() {
               <label style={fieldLabel}>Confirm Password</label>
               <input type="password" value={fpConfirmPassword} onChange={(e) => setFpConfirmPassword(e.target.value)} required minLength={8} style={input()} />
             </div>
-            <button type="submit" className="btn" style={btnStyle}>Reset Password</button>
+            <button type="submit" className="btn" style={{ ...btnStyle, opacity: busy ? 0.7 : 1 }} disabled={busy}>{busy ? 'Saving…' : 'Reset Password'}</button>
             <div style={{ marginTop: 14, textAlign: 'center' }}>
               <button type="button" onClick={goBack} style={linkStyle}>← Back to Login</button>
             </div>
@@ -318,7 +336,7 @@ export default function LoginPage() {
 
         {/* ── Forgot Username ──────────────────────────────────────── */}
         {view === 'forgot_username' && (
-          <form onSubmit={onForgotUsernameSubmit}>
+          <form onSubmit={once(onForgotUsernameSubmit)}>
             <p style={{ fontSize: 13, color: color.textMuted, margin: '0 0 18px' }}>
               Enter your registered email address. If found, your username will be sent to it.
             </p>
@@ -331,7 +349,7 @@ export default function LoginPage() {
                 🔧 <strong>Dev mode:</strong> Your username is <code style={{ fontSize: 14, fontWeight: 700, fontFamily: font.mono }}>{fuDevUsername}</code>
               </div>
             )}
-            <button type="submit" className="btn" style={btnStyle}>Recover Username</button>
+            <button type="submit" className="btn" style={{ ...btnStyle, opacity: busy ? 0.7 : 1 }} disabled={busy}>{busy ? 'Sending…' : 'Recover Username'}</button>
             <div style={{ marginTop: 14, textAlign: 'center' }}>
               <button type="button" onClick={goBack} style={linkStyle}>← Back to Login</button>
             </div>
