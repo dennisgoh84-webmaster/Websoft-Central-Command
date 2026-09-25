@@ -25,3 +25,8 @@ Thumbs.db
 
 # Local DB backups made by scripts/upgrade.sh
 backups/
+
+# Server-specific Compose additions (e.g. joining the ERP's network, see
+# DEPLOY.md section 6). Ignored so scripts/upgrade.sh's clean-tree check
+# does not refuse to upgrade a server that has one.
+docker-compose.override.yml

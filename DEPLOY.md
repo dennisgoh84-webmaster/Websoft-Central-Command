@@ -136,7 +136,39 @@ mail server is configured. That is expected on a test server (see §9).
 ## 6. Register a client ERP for testing
 
 Central Command only does something useful once it can reach a client
-ERP database. For each test client:
+ERP database.
+
+### Client ERP on the same server
+
+The ERP's Postgres is not published to the host (its compose file
+keeps it internal), so let `cc-backend` join the ERP's Docker network
+instead of opening a port. In the Central Command folder create
+`docker-compose.override.yml` (gitignored, so upgrades keep working):
+
+```yaml
+services:
+  cc-backend:
+    networks: [default, erp]
+networks:
+  erp:
+    external: true
+    name: websoft-erp_default
+```
+
+then `docker compose up -d`. In **Clients**, give that client:
+
+| Field | Value |
+|---|---|
+| Host | `websoft-erp-db-1` |
+| Port | `5432` |
+| Database | `websoft_service_erp` |
+| Username | `websoft_app` |
+| Password | `POSTGRES_PASSWORD` from the ERP's `.env` |
+| Use TLS | **unticked** -- the traffic never leaves the Docker network, and the ERP's Postgres has no certificate |
+
+### Client ERP on another server
+
+For each client on a different machine:
 
 1. On the client Postgres, create a role Central Command will use and
    grant it access to the schema-contract tables
