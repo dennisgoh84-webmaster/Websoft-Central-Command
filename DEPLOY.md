@@ -153,9 +153,9 @@ username password`, or `CC_SMOKE_USERNAME` / `CC_SMOKE_PASSWORD` in
 `.env` (then `upgrade.sh` uses them too). With explicit credentials a
 refused login does fail the test.
 
-Then open `http://<server-ip>:8080` in a browser and log in. The OTP
-step shows the code on screen in a yellow "Dev mode" banner because no
-mail server is configured. That is expected on a test server (see §9).
+Then open `http://<server-ip>:8080` in a browser and log in. Until a
+mailbox is set for Central Command (see **Central Command's own email**),
+the code step shows the code on screen with a warning.
 
 ## 6. Register a client ERP for testing
 
@@ -236,6 +236,27 @@ expected workflow for every screen. Minimum pass:
 
 ## 8. Day-2 operations
 
+### Central Command's own email
+
+Central Command emails its own sign-in codes, password-reset codes and
+username reminders through one of the mailboxes on the **System Mail**
+screen. A super admin clicks **Use for CC sign-in** on that mailbox; a
+test email goes to their own address first, and it only switches over if
+that works. **Send test** checks any mailbox at any time.
+
+Until one is set, sign-in codes appear on the login screen (with a
+warning -- anyone with a password gets in) and password reset by email
+is refused rather than put a reset code on screen. Once set, no code is
+ever shown. If the mailbox later fails, the login page says so, and the
+code is written to the server log -- the way back in:
+
+```bash
+docker compose logs cc-backend | grep "NOT emailed"
+```
+
+`CC_SHOW_CODES_ON_SCREEN=true` in `.env` shows every code on screen; for
+local development only.
+
 ### HTTPS
 
 Put Caddy in front, once, with sudo -- it installs Caddy, writes the
@@ -308,7 +329,7 @@ last one that needs SSH.
 **Logs**
 
 ```bash
-docker compose logs -f cc-backend      # API, OTP codes in dev mode, push errors
+docker compose logs -f cc-backend      # API, push errors, codes that could not be emailed
 docker compose logs -f cc-frontend     # nginx access log
 ```
 
@@ -380,7 +401,7 @@ docker compose exec cc-db psql -U cc_app central_command
 
 | Area | Test server (this runbook) | Before production |
 |---|---|---|
-| OTP delivery | Central Command cannot email yet (`sendOtpEmail` only logs), so the code is always returned in the login response and shown on screen -- the second step adds no protection | Add real email sending for CC's own sign-in codes, then stop returning `_dev_otp` |
+| Sign-in codes | Until a mailbox is set for Central Command, sign-in codes are shown on screen (password still needed) and password reset by email is off | Set one: see **Central Command's own email** below |
 | TLS to the browser | Plain HTTP on `CC_HTTP_PORT` | `sudo ./scripts/setup-https.sh ...` then `CC_HTTP_BIND=127.0.0.1` (see **HTTPS**) |
 | Admin password | `Admin123` seeded | Change on first login; consider removing the default from `CentralCommandInstall` |
 | Config Updates | Raw SQL runs on every active client with no dry run | Add review/approval, per-client preview |

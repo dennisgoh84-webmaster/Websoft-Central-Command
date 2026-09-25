@@ -113,6 +113,8 @@ export interface SystemMailSetting {
   use_tls: boolean
   from_email: string | null
   from_name: string | null
+  /** Central Command sends its own sign-in / reset emails through this one (2026-09-25). */
+  used_by_central_command: boolean
   created_at: string
   assignments: { client_id: string; pushed_at: string | null }[]
 }
@@ -283,6 +285,10 @@ export interface LoginResponse {
   otp_session?: string
   email_sent?: boolean
   email_hint?: string | null
+  /** false = no System Mail mailbox is set for Central Command, so the code is shown instead. */
+  email_configured?: boolean
+  /** Set when a mailbox is set up but the code could not be emailed. */
+  delivery_error?: string
   _dev_otp?: string
 }
 
@@ -434,6 +440,10 @@ export const api = {
     request<void>(`/system-mail/${id}`, { method: 'DELETE' }),
   pushSystemMail: (id: string) =>
     request<PushResult>(`/system-mail/${id}/push`, { method: 'POST' }),
+  testSystemMail: (id: string) =>
+    request<{ sent: boolean; to: string }>(`/system-mail/${id}/test-email`, { method: 'POST' }),
+  useSystemMailForCentralCommand: (id: string, enabled: boolean) =>
+    request<SystemMailSetting>(`/system-mail/${id}/use-for-central-command`, { method: 'POST', body: JSON.stringify({ enabled }) }),
 
   // Staff Management
   listStaff: () => request<AdminUser[]>('/staff/'),

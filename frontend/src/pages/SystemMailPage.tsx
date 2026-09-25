@@ -3,6 +3,7 @@ import { api, type ClientSummary, type MailPurpose, type PushResult, type System
 import { formatDateTime } from '../lib/format'
 import { alert, badge, button, card, color, dismissButton, font, h1, input, label as fieldLabel, pageHeader, table, td, th, type Tone } from '../lib/theme'
 import { ClientPicker, TargetChips } from '../components/ClientTargeting'
+import { useAuth } from '../lib/AuthContext'
 
 const PURPOSE_LABEL: Record<MailPurpose, string> = { otp: 'Sign-in / OTP', helpdesk: 'Helpdesk (Outlook Add-in)' }
 const PURPOSE_TONE: Record<MailPurpose, Tone> = { otp: 'info', helpdesk: 'purple' }
@@ -20,6 +21,11 @@ export default function SystemMailPage() {
   const [form, setForm] = useState(EMPTY_FORM)
   const [error, setError] = useState('')
   const [pushResult, setPushResult] = useState<PushResult | null>(null)
+  const [notice, setNotice] = useState('')
+  const [busyId, setBusyId] = useState<string | null>(null)
+  const { user } = useAuth()
+  const isSuper = user?.role === 'super_admin'
+  const ccMailbox = settings.find((s) => s.used_by_central_command) ?? null
 
   const refresh = () => {
     api.listSystemMail().then(setSettings)
@@ -102,6 +108,37 @@ export default function SystemMailPage() {
     }
   }
 
+  async function onTest(id: string) {
+    setError(''); setNotice(''); setBusyId(id)
+    try {
+      const r = await api.testSystemMail(id)
+      setNotice(`Test email sent to ${r.to} -- check that inbox (and its spam folder).`)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Test email failed')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  async function onUseForCentralCommand(s: SystemMailSetting, enabled: boolean) {
+    const question = enabled
+      ? `Use "${s.label}" for Central Command's own sign-in emails?\n\nA test email is sent to you first; it only switches over if that works. From then on sign-in codes are emailed and no longer shown on screen.`
+      : `Stop using "${s.label}" for Central Command's sign-in emails?\n\nSign-in codes will be shown on screen again, and password reset by email is switched off.`
+    if (!window.confirm(question)) return
+    setError(''); setNotice(''); setBusyId(s.id)
+    try {
+      await api.useSystemMailForCentralCommand(s.id, enabled)
+      setNotice(enabled
+        ? `Central Command now emails its sign-in codes through "${s.label}". A test email was sent to you.`
+        : `"${s.label}" is no longer used for Central Command sign-in.`)
+      refresh()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not change it')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
   async function onDelete(id: string) {
     if (!window.confirm('Delete this mailbox config? This does not clear it from any client already pushed to.')) return
     await api.deleteSystemMail(id)
@@ -135,6 +172,31 @@ export default function SystemMailPage() {
           in the push results here.
         </p>
       </div>
+
+      {/* Central Command's OWN email (2026-09-25) */}
+      <div style={{ ...alert(ccMailbox ? 'success' : 'warning'), display: 'block', maxWidth: 680, marginBottom: 18 }}>
+        {ccMailbox ? (
+          <span>
+            ✓ <strong>Central Command's own sign-in email</strong> goes through <strong>{ccMailbox.label}</strong>
+            {ccMailbox.from_email ? <> ({ccMailbox.from_email})</> : null}: sign-in and password-reset codes are emailed,
+            never shown on screen.
+          </span>
+        ) : (
+          <span>
+            ⚠️ <strong>Central Command cannot email yet.</strong> Its own sign-in codes are shown on the login screen
+            (anyone with a password gets in), and password reset by email is off. {isSuper
+              ? <>Pick a mailbox below and click <strong>Use for CC sign-in</strong>. It sends you a test email first.</>
+              : <>A super admin can set this up here.</>}
+          </span>
+        )}
+      </div>
+
+      {notice && (
+        <div style={alert('success')}>
+          <span>{notice}</span>
+          <button onClick={() => setNotice('')} style={dismissButton()}>✕</button>
+        </div>
+      )}
 
       {error && (
         <div style={alert('danger')}>
@@ -256,7 +318,12 @@ export default function SystemMailPage() {
             {settings.map((s) => (
               <tr key={s.id} className="tr" style={{ borderBottom: `1px solid ${color.border}` }}>
                 <td style={td()}><span style={badge(PURPOSE_TONE[s.purpose])}>{PURPOSE_LABEL[s.purpose]}</span></td>
-                <td style={td({ fontWeight: 500 })}>{s.label}</td>
+                <td style={td({ fontWeight: 500 })}>
+                  {s.label}
+                  {s.used_by_central_command && (
+                    <div style={{ marginTop: 4 }}><span style={badge('success')}>Central Command sign-in</span></div>
+                  )}
+                </td>
                 <td style={td({ fontFamily: font.mono, fontSize: 11.5, color: color.textMuted })}>{s.host || '—'}</td>
                 <td style={td({ fontSize: 12 })}>{s.from_email || '—'}</td>
                 <td style={td({ color: s.password_set ? color.success : color.textFaint, fontWeight: 500 })}>{s.password_set ? 'Set' : 'Not set'}</td>
@@ -265,8 +332,21 @@ export default function SystemMailPage() {
                 </td>
                 <td style={td({ color: color.textMuted })}>{formatDateTime(s.created_at)}</td>
                 <td style={td()}>
-                  <div style={{ display: 'flex', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button onClick={() => onClickEdit(s)} className="btn" style={button('secondary', 'sm')}>Edit</button>
+                    <button onClick={() => onTest(s.id)} disabled={busyId === s.id} className="btn" style={button('secondary', 'sm')}>
+                      {busyId === s.id ? 'Sending…' : 'Send test'}
+                    </button>
+                    {isSuper && (
+                      <button
+                        onClick={() => onUseForCentralCommand(s, !s.used_by_central_command)}
+                        disabled={busyId === s.id}
+                        className="btn"
+                        style={button(s.used_by_central_command ? 'secondary' : 'primary', 'sm')}
+                      >
+                        {s.used_by_central_command ? 'Stop using for CC' : 'Use for CC sign-in'}
+                      </button>
+                    )}
                     <button onClick={() => onPush(s.id)} className="btn" style={button('success', 'sm')}>Push</button>
                     <button onClick={() => onDelete(s.id)} className="btn" style={button('danger', 'sm')}>Delete</button>
                   </div>

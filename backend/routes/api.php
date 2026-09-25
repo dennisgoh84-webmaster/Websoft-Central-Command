@@ -116,6 +116,8 @@ Route::middleware('cc.auth')->group(function () {
         Route::patch('/{settingId}', [SystemMailController::class, 'update']);
         Route::delete('/{settingId}', [SystemMailController::class, 'destroy']);
         Route::post('/{settingId}/push', [SystemMailController::class, 'push']);
+        Route::post('/{settingId}/test-email', [SystemMailController::class, 'testEmail']);
+        Route::post('/{settingId}/use-for-central-command', [SystemMailController::class, 'useForCentralCommand']);
     });
 
     // ── Staff Management ─────────────────────────────────────────────

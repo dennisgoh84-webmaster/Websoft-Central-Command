@@ -29,6 +29,13 @@ return [
     // docs/central-command-schema-contract.md.
     'min_client_migration_head' => env('CC_MIN_CLIENT_MIGRATION_HEAD'),
 
+    // Show one-time codes on screen even when they could be emailed --
+    // local development and tests only (2026-09-25). Off by default:
+    // sign-in codes then appear on screen only while no System Mail
+    // mailbox is marked for Central Command, and password-reset codes
+    // and username reminders never do.
+    'show_codes_on_screen' => (bool) env('CC_SHOW_CODES_ON_SCREEN', false),
+
     // Shared secret for the host-side upgrade agent (scripts/upgrade-agent.sh),
     // sent as X-Upgrade-Agent-Token. Empty = agent endpoints disabled (503).
     'upgrade_agent_token' => env('CC_UPGRADE_AGENT_TOKEN'),

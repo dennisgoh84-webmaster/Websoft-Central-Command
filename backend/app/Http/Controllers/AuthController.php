@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AdminUser;
 use App\Models\LoginOtp;
 use App\Services\AuthService;
+use App\Services\CcMailer;
 use App\Support\ApiException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -15,11 +16,20 @@ use Illuminate\Support\Str;
  * Auth endpoints for Central Command admin login.
  *
  * Login flow:
- * 1. POST /login — validates credentials, generates 6-digit OTP,
- *    "sends" it to the admin's registered email. In dev mode (no SMTP)
- *    the OTP is returned in the response body so the flow can still be
- *    tested without email infrastructure.
+ * 1. POST /login — validates credentials, generates a 6-digit OTP and
+ *    emails it through the System Mail mailbox marked for Central
+ *    Command (App\Services\CcMailer).
  * 2. POST /verify-otp — validates the OTP and returns a JWT.
+ *
+ * What may appear on screen (2026-09-25 -- before this the email was a
+ * stub, every code was returned in the response, and "forgot password"
+ * let anyone who knew a username reset its password):
+ * - a sign-in code: only while NO mailbox is marked for Central Command,
+ *   so a fresh install is not locked out (the password is still needed);
+ * - a password-reset code or a username: never.
+ * A code that could not be emailed is written to the server log, which
+ * only someone with access to the server can read -- the way back in.
+ * CC_SHOW_CODES_ON_SCREEN=true shows every code (development and tests).
  *
  * Recovery flows:
  * - POST /forgot-password — sends a reset OTP to the admin's email
@@ -30,7 +40,7 @@ class AuthController extends Controller
 {
     private const OTP_EXPIRY_MINUTES = 5;
 
-    public function __construct(private AuthService $auth) {}
+    public function __construct(private AuthService $auth, private CcMailer $mailer) {}
 
     public function login(Request $request)
     {
@@ -46,16 +56,22 @@ class AuthController extends Controller
         }
 
         $otp = $this->createOtp($user, 'login');
-        $emailSent = $this->sendOtpEmail($user, $otp->otp_code, 'login');
+        [$emailSent, $error] = $this->sendOtpEmail($user, $otp->otp_code, 'login');
+        $configured = $this->mailer->mailbox() !== null;
 
         $response = [
             'status' => 'otp_required',
             'otp_session' => (string) $otp->id,
             'email_sent' => $emailSent,
             'email_hint' => $user->email ? $this->maskEmail($user->email) : null,
+            'email_configured' => $configured,
         ];
         if (! $emailSent) {
-            $response['_dev_otp'] = $otp->otp_code;
+            if (! $configured || $this->showCodes()) {
+                $response['_dev_otp'] = $otp->otp_code;
+            } else {
+                $response['delivery_error'] = "Your sign-in code could not be emailed ({$error}). Try again shortly, or ask whoever runs the Central Command server -- the code is in its log.";
+            }
         }
 
         return response()->json($response);
@@ -110,15 +126,21 @@ class AuthController extends Controller
             throw new ApiException(400, 'No email address registered for this account. Contact a super admin.');
         }
 
+        if ($this->mailer->mailbox() === null && ! $this->showCodes()) {
+            // Never put a reset code on screen: that would let anyone who
+            // knows a username set its password.
+            throw new ApiException(400, 'Password reset by email is not available yet -- no mailbox has been set up for Central Command (System Mail). Ask a super admin to reset your password.');
+        }
+
         $otp = $this->createOtp($user, 'reset_password');
-        $emailSent = $this->sendOtpEmail($user, $otp->otp_code, 'reset_password');
+        [$emailSent] = $this->sendOtpEmail($user, $otp->otp_code, 'reset_password');
 
         $response = [
             'status' => 'ok',
             'message' => 'If the username exists, an OTP has been sent to the registered email.',
             'email_hint' => $this->maskEmail($user->email),
         ];
-        if (! $emailSent) {
+        if (! $emailSent && $this->showCodes()) {
             $response['_dev_otp'] = $otp->otp_code;
         }
 
@@ -173,7 +195,7 @@ class AuthController extends Controller
 
         if ($user) {
             $emailSent = $this->sendUsernameEmail($user);
-            if (! $emailSent) {
+            if (! $emailSent && $this->showCodes()) {
                 $response['_dev_username'] = $user->username;
             }
         }
@@ -216,43 +238,63 @@ class AuthController extends Controller
         return str_pad((string) random_int(0, 999_999), 6, '0', STR_PAD_LEFT);
     }
 
-    /**
-     * Send OTP via email. Returns true if sent, false if no SMTP
-     * configured.
-     *
-     * In this development environment SMTP is not available, so the
-     * OTP is logged instead. Production would integrate a real mailer
-     * here.
-     */
-    private function sendOtpEmail(AdminUser $user, string $otpCode, string $purpose): bool
+    private function showCodes(): bool
     {
-        $subject = match ($purpose) {
-            'login' => 'Central Command Login OTP',
-            'reset_password' => 'Central Command Password Reset OTP',
-            default => 'Central Command OTP',
-        };
-
-        Log::info(sprintf(
-            '📧 [DEV] Email to %s (%s): %s — OTP: %s',
-            $user->email ?: '(no email)',
-            $user->full_name,
-            $subject,
-            $otpCode,
-        ));
-
-        return false; // no actual email sent
+        return (bool) config('centralcommand.show_codes_on_screen');
     }
 
-    /** Send username recovery email. Dev mode: logged instead of sent. */
+    /**
+     * Email a one-time code through Central Command's mailbox.
+     *
+     * @return array{0: bool, 1: ?string} [sent, why not]
+     */
+    private function sendOtpEmail(AdminUser $user, string $otpCode, string $purpose): array
+    {
+        [$subject, $intro] = match ($purpose) {
+            'reset_password' => ['Central Command password reset code', 'Use this code to reset your Central Command password'],
+            default => ['Central Command sign-in code', 'Use this code to finish signing in to Central Command'],
+        };
+        $text = "Hello {$user->full_name},\n\n{$intro}:\n\n    {$otpCode}\n\n"
+            .'It expires in '.self::OTP_EXPIRY_MINUTES." minutes. If you did not ask for it, someone may know your password -- change it.\n";
+
+        $error = $this->deliver($user, $subject, $text);
+        if ($error !== null) {
+            // The way back in when email is not set up or fails: only
+            // someone with access to the server can read this log.
+            Log::warning(sprintf('Central Command %s code for %s NOT emailed (%s): %s', $purpose, $user->username, $error, $otpCode));
+        }
+
+        return [$error === null, $error];
+    }
+
     private function sendUsernameEmail(AdminUser $user): bool
     {
-        Log::info(sprintf(
-            "📧 [DEV] Username recovery email to %s: Your username is '%s'",
-            $user->email,
-            $user->username,
-        ));
+        $error = $this->deliver($user, 'Your Central Command username',
+            "Hello {$user->full_name},\n\nYour Central Command username is: {$user->username}\n");
+        if ($error !== null) {
+            Log::warning(sprintf('Central Command username reminder for %s NOT emailed (%s)', $user->email, $error));
+        }
 
-        return false;
+        return $error === null;
+    }
+
+    /** @return ?string null when sent, otherwise why not */
+    private function deliver(AdminUser $user, string $subject, string $text): ?string
+    {
+        $box = $this->mailer->mailbox();
+        if ($box === null) {
+            return 'no mailbox is set up for Central Command';
+        }
+        if (! $user->email) {
+            return 'no email address on this account';
+        }
+        try {
+            $this->mailer->send($box, $user->email, $subject, $text);
+
+            return null;
+        } catch (\Throwable $e) {
+            return 'the mail server said: '.mb_substr($e->getMessage(), 0, 200);
+        }
     }
 
     /** Mask email for display: 'admin@webmaster.com.sg' -> 'a****@w******.com.sg' */

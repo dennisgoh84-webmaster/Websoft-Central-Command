@@ -40,6 +40,7 @@ class SystemMailSetting extends CcModel
             'purpose' => UppercaseDbEnum::class,
             'port' => 'integer',
             'use_tls' => 'boolean',
+            'used_by_central_command' => 'boolean',
             'created_at' => 'datetime',
         ];
     }

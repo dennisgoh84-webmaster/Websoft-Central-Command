@@ -30,4 +30,5 @@ are set in `phpunit.xml`, overriding `.env`.
 |---|---|
 | `Feature/AuthTest.php` | Password, then one-time code, then token; wrong password / code / reused code; disabled account; token-protected screens |
 | `Feature/CcUpgradeAgentTest.php` | The CC Upgrade screen with its host agent: token checks, heartbeat, pickup, live progress, final report, failures, cancel, super-admin only |
+| `Feature/SignInEmailTest.php` | Central Command's own email: code shown only while no mailbox is set; emailed and never shown once one is; failures explained, not shown; reset codes and usernames never on screen; switching a mailbox on needs a working test email; super admin only |
 | `Feature/ClientDatabaseTest.php` | Against the stand-in client DB: Test Connection, announcement push (one-way `central` rows, upsert), minimum-migration refusal, client upgrade queue, clients without upgrade support |

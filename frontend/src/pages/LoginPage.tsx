@@ -21,6 +21,8 @@ export default function LoginPage() {
   const [otpCode, setOtpCode] = useState('')
   const [emailHint, setEmailHint] = useState<string | null>(null)
   const [devOtp, setDevOtp] = useState<string | null>(null)
+  const [emailSent, setEmailSent] = useState(false)
+  const [deliveryError, setDeliveryError] = useState<string | null>(null)
 
   // Forgot password state
   const [fpUsername, setFpUsername] = useState('')
@@ -59,6 +61,8 @@ export default function LoginPage() {
         setOtpSession(res.otp_session || '')
         setEmailHint(res.email_hint || null)
         setDevOtp(res._dev_otp || null)
+        setEmailSent(!!res.email_sent)
+        setDeliveryError(res.delivery_error || null)
         setOtpCode('')
         setView('otp')
       }
@@ -219,13 +223,24 @@ export default function LoginPage() {
         {/* ── OTP Verification ─────────────────────────────────────── */}
         {view === 'otp' && (
           <form onSubmit={onOtpSubmit}>
-            <div style={{ ...alert('info'), display: 'block' }}>
-              📧 A 6-digit OTP has been sent to <strong>{emailHint || 'your registered email'}</strong>.
-              <br />Enter it below to complete login.
-            </div>
+            {emailSent && (
+              <div style={{ ...alert('info'), display: 'block' }}>
+                📧 A 6-digit code has been emailed to <strong>{emailHint || 'your registered email'}</strong>.
+                <br />Enter it below to complete login.
+              </div>
+            )}
+            {deliveryError && (
+              <div style={{ ...alert('danger'), display: 'block' }}>{deliveryError}</div>
+            )}
             {devOtp && (
               <div style={{ ...alert('warning'), display: 'block' }}>
-                🔧 <strong>Dev mode:</strong> OTP is <code style={{ fontSize: 14, fontWeight: 700, letterSpacing: 2, fontFamily: font.mono }}>{devOtp}</code>
+                ⚠️ <strong>Email is not set up for Central Command yet</strong>, so your code is shown here:{' '}
+                <code style={{ fontSize: 14, fontWeight: 700, letterSpacing: 2, fontFamily: font.mono }}>{devOtp}</code>
+                <br />
+                <span style={{ fontSize: 12 }}>
+                  Anyone with the password can sign in until a super admin sets a mailbox under{' '}
+                  <strong>System Mail → Use for Central Command sign-in</strong>.
+                </span>
               </div>
             )}
             <div style={{ marginBottom: 22 }}>

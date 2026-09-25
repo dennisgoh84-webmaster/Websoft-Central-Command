@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\SystemMailSetting;
 use App\Models\SystemMailSettingAssignment;
+use App\Services\CcMailer;
 use App\Services\ClientDbService;
 use App\Support\ApiException;
 use App\Support\ClientDbException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Carbon;
 
 /**
@@ -20,7 +22,7 @@ use Illuminate\Support\Carbon;
  */
 class SystemMailController extends Controller
 {
-    public function __construct(private ClientDbService $clientDb) {}
+    public function __construct(private ClientDbService $clientDb, private CcMailer $mailer) {}
 
     public function index()
     {
@@ -104,6 +106,79 @@ class SystemMailController extends Controller
         return response()->noContent();
     }
 
+    /**
+     * Send a test email through this mailbox to the signed-in admin, so
+     * a mailbox can be checked before anything relies on it (2026-09-25).
+     */
+    public function testEmail(string $settingId, Request $request)
+    {
+        $setting = $this->findOr404($settingId);
+        $to = $this->sendTest($setting, $request->attributes->get('admin'));
+
+        return response()->json(['sent' => true, 'to' => $to]);
+    }
+
+    /**
+     * Use this mailbox (or stop using it) for Central Command's OWN
+     * email: sign-in codes, password-reset codes, username reminders.
+     * Super admins only. Switching it on first sends the admin a test
+     * email and only takes effect if that arrives at the mail server
+     * -- a broken mailbox must not become the only way to sign in.
+     */
+    public function useForCentralCommand(string $settingId, Request $request)
+    {
+        $admin = $request->attributes->get('admin');
+        if ($admin->role !== 'super_admin') {
+            throw new ApiException(403, "Only super admins can change Central Command's sign-in email");
+        }
+        $setting = $this->findOr404($settingId);
+
+        if ($request->boolean('enabled')) {
+            $this->sendTest($setting, $admin);
+            DB::transaction(function () use ($setting) {
+                SystemMailSetting::where('id', '!=', $setting->id)->update(['used_by_central_command' => false]);
+                $setting->used_by_central_command = true;
+                $setting->save();
+            });
+        } else {
+            $setting->used_by_central_command = false;
+            $setting->save();
+        }
+        $setting->load('assignments');
+
+        return response()->json($this->settingOut($setting));
+    }
+
+    private function findOr404(string $settingId): SystemMailSetting
+    {
+        $setting = SystemMailSetting::find($settingId);
+        if (! $setting) {
+            throw new ApiException(404, 'System mail setting not found');
+        }
+
+        return $setting;
+    }
+
+    /** @return string where it went */
+    private function sendTest(SystemMailSetting $setting, $admin): string
+    {
+        if (! $admin->email) {
+            throw new ApiException(400, 'Your own account has no email address to send the test to -- add one under Staff first.');
+        }
+        try {
+            $this->mailer->send(
+                $setting,
+                $admin->email,
+                'Central Command test email',
+                "Hello {$admin->full_name},\n\nThis test email was sent through the \"{$setting->label}\" mailbox ({$setting->host}:{$setting->port}). If you are reading it, the mailbox works.\n",
+            );
+        } catch (\Throwable $e) {
+            throw new ApiException(422, 'The test email could not be sent -- the mail server said: '.mb_substr($e->getMessage(), 0, 300));
+        }
+
+        return $admin->email;
+    }
+
     /** Push this mailbox config to all assigned clients. */
     public function push(string $settingId, Request $request)
     {
@@ -145,6 +220,7 @@ class SystemMailController extends Controller
             'use_tls' => $s->use_tls,
             'from_email' => $s->from_email,
             'from_name' => $s->from_name,
+            'used_by_central_command' => (bool) $s->used_by_central_command,
             'created_at' => $s->created_at?->toISOString(),
             'assignments' => $s->relationLoaded('assignments') ? $s->assignments->map(fn (SystemMailSettingAssignment $a) => [
                 'client_id' => (string) $a->client_id,
