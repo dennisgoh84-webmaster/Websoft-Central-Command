@@ -26,6 +26,15 @@ if ! grep -qE '^CC_UPGRADE_AGENT_TOKEN=.+' .env; then
     printf '\n# Shared secret between the backend and scripts/upgrade-agent.sh (generated).\nCC_UPGRADE_AGENT_TOKEN=%s\n' "$TOKEN" >> .env
   fi
   echo "    generated CC_UPGRADE_AGENT_TOKEN in .env"
+  # The backend reads the token from its environment when it starts, so a
+  # backend that is already running must be recreated to pick it up --
+  # otherwise the agent's check-ins are refused until its next restart.
+  # --no-deps: recreate just the backend, not the services it depends on.
+  if docker compose ps --status running --services 2>/dev/null | grep -qx cc-backend; then
+    docker compose up -d --no-deps cc-backend >/dev/null 2>&1 \
+      && echo "    restarted cc-backend so it has the token" \
+      || warn "could not restart cc-backend -- run: docker compose up -d"
+  fi
 fi
 
 chmod +x scripts/upgrade-agent.sh scripts/upgrade.sh
