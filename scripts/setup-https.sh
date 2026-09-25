@@ -18,6 +18,11 @@
 #   own private certificate; each device trusts it once (printed below):
 #     sudo ./scripts/setup-https.sh 192.168.0.188:8443=8082 192.168.0.188:8444=8083
 #
+#   With an IP address, each device can then download that certificate
+#   from http://ADDRESS:8440 (plain HTTP on purpose -- the device doesn't
+#   trust HTTPS here yet). Only the public certificate is served, never
+#   its key. Another port: CERT_PORT=8450 sudo -E ./scripts/setup-https.sh ...
+#
 #   Preview the configuration without installing or changing anything:
 #     ./scripts/setup-https.sh --dry-run cc.example.com=8082
 #
@@ -36,6 +41,9 @@ if [ "${1:-}" = "--dry-run" ]; then DRY_RUN=1; shift; fi
 [ $# -ge 1 ] || die "Give at least one ADDRESS=PORT, e.g. cc.example.com=8082 -- see the top of this script."
 
 CADDYFILE=/etc/caddy/Caddyfile
+CERT_PORT="${CERT_PORT:-8440}"
+# Where the Caddy package's service keeps its private CA (HOME=/var/lib/caddy).
+CA_DIR="${CADDY_CA_DIR:-/var/lib/caddy/.local/share/caddy/pki/authorities/local}"
 BEGIN='# >>> websoft-https (managed by setup-https.sh -- edit by re-running it)'
 END='# <<< websoft-https'
 
@@ -54,6 +62,7 @@ for arg in "$@"; do
 
   if is_ip "$host"; then
     PRIVATE_CA=1
+    CA_HOST="${CA_HOST:-$host}"
     port="${listen:-443}"
     NEEDED_PORTS+=("$port")
     BLOCK+="https://$host:$port {"$'\n'"    tls internal"$'\n'
@@ -69,6 +78,18 @@ for arg in "$@"; do
   fi
   BLOCK+="    encode gzip"$'\n'"    reverse_proxy 127.0.0.1:$upstream"$'\n'"}"$'\n\n'
 done
+if [ "$PRIVATE_CA" -eq 1 ]; then
+  # Hand out the private CA's public certificate so devices can trust it.
+  # Every path is rewritten to root.crt, so root.key beside it can never
+  # be fetched.
+  NEEDED_PORTS+=("$CERT_PORT")
+  BLOCK+="http://$CA_HOST:$CERT_PORT {"$'\n'
+  BLOCK+="    root * $CA_DIR"$'\n'
+  BLOCK+="    rewrite * /root.crt"$'\n'
+  BLOCK+="    header Content-Type application/x-x509-ca-cert"$'\n'
+  BLOCK+="    header Content-Disposition \"attachment; filename=websoft-root.crt\""$'\n'
+  BLOCK+="    file_server"$'\n'"}"$'\n\n'
+fi
 BLOCK+="$END"
 
 if [ "$DRY_RUN" -eq 1 ]; then
@@ -144,11 +165,13 @@ if [ "$PRIVATE_CA" -eq 1 ]; then
   cat <<NOTE
 
   These addresses use Caddy's own private certificate. Browsers warn until
-  each device trusts it once: copy this file to the device and install it
-  as a trusted root certificate (iPhone: AirDrop/email it, install the
-  profile, then Settings > General > About > Certificate Trust Settings):
+  each device trusts it once. On each device open
 
-    /var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt
+    http://$CA_HOST:$CERT_PORT
+
+  to download it, then install it as a trusted root certificate -- see
+  DEPLOY.md, "HTTPS", for Windows, Mac, iPhone and Android. (The same
+  file is on this server at $CA_DIR/root.crt.)
 NOTE
 fi
 cat <<NEXT

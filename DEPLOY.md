@@ -276,9 +276,23 @@ sudo ./scripts/setup-https.sh 192.168.0.188:8443=8082 192.168.0.188:8444=8083
 
 Each `ADDRESS=PORT` maps an HTTPS address to the local HTTP port the app
 already listens on (`CC_HTTP_PORT` here, `HTTP_PORT` in the ERP's `.env`).
-With the private certificate, each device trusts it once: the script
-prints the file to install (on an iPhone, open it, install the profile,
-then Settings › General › About › Certificate Trust Settings).
+With the private certificate, each device trusts it once. The script
+also serves that certificate (the public part only, never its key) at
+`http://ADDRESS:8440` -- open it on each device and install it:
+
+- **Windows**: open the downloaded `websoft-root.crt` › Install Certificate ›
+  Local Machine › "Place all certificates in the following store" ›
+  Trusted Root Certification Authorities. Restart the browser.
+- **Mac**: open it (Keychain Access, System keychain) › double-click the
+  certificate › Trust › "When using this certificate: Always Trust".
+- **iPhone / iPad**: open the address in **Safari** (not Chrome) › Allow ›
+  Settings › Profile Downloaded › Install; then Settings › General › About ›
+  Certificate Trust Settings › switch it on.
+- **Android**: Settings › Security › Encryption & credentials › Install a
+  certificate › CA certificate › pick the download.
+
+(Another port for the download: `CERT_PORT=8450 sudo -E ./scripts/setup-https.sh ...`.
+The file itself is `/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt`.)
 
 Then close the plain-HTTP port to everything but this server: set
 `CC_HTTP_BIND=127.0.0.1` in `.env` and `docker compose up -d`. The
