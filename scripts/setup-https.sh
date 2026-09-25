@@ -10,9 +10,13 @@
 # app already listens on (CC_HTTP_PORT for Central Command, HTTP_PORT
 # for the ERP).
 #
-#   With a domain name pointed at this server (ports 80 and 443 open to
-#   the internet) -- a free Let's Encrypt certificate, renewed by itself:
+#   With a domain name -- including an office router's DDNS name such as
+#   office.ddns.net -- a free Let's Encrypt certificate, renewed by itself.
+#   Let's Encrypt checks the name on its port 80, so from the internet
+#   ports 80 and the HTTPS ports must reach this server (behind a router:
+#   forward them to this server's office address):
 #     sudo ./scripts/setup-https.sh cc.example.com=8082 erp.example.com=8083
+#     sudo ./scripts/setup-https.sh office.ddns.net:8443=8082 office.ddns.net:8444=8083
 #
 #   With only the server's address (office network, no domain) -- Caddy's
 #   own private certificate; each device trusts it once (printed below):
@@ -52,6 +56,7 @@ is_ip() { [[ "$1" =~ ^[0-9]+(\.[0-9]+){3}$ ]] || [[ "$1" == *:*:* ]] || [ "$1" =
 # ---- 1. build the site blocks --------------------------------------------
 BLOCK="$BEGIN"$'\n'
 NEEDED_PORTS=()
+PUBLIC_PORTS=()   # what a router in front must forward here (domain sites)
 PRIVATE_CA=0
 for arg in "$@"; do
   [[ "$arg" == *=* ]] || die "\"$arg\" is not ADDRESS=PORT"
@@ -70,9 +75,11 @@ for arg in "$@"; do
     [[ "$host" == *.* ]] || die "\"$host\" is neither a domain name nor an IP address"
     if [ -n "$listen" ]; then
       NEEDED_PORTS+=("$listen" 80)
+      PUBLIC_PORTS+=(80 "$listen")
       BLOCK+="$host:$listen {"$'\n'
     else
       NEEDED_PORTS+=(443 80)
+      PUBLIC_PORTS+=(80 443)
       BLOCK+="$host {"$'\n'
     fi
   fi
@@ -174,10 +181,31 @@ if [ "$PRIVATE_CA" -eq 1 ]; then
   file is on this server at $CA_DIR/root.crt.)
 NOTE
 fi
+if [ ${#PUBLIC_PORTS[@]} -gt 0 ]; then
+  # This server's own address on its network -- what a router forwards to.
+  # (Best effort: with no default route, or no `ip`, it just says "this server".)
+  LAN_IP=$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i = 1; i < NF; i++) if ($i == "src") { print $(i + 1); exit }}' || true)
+  PORTS=$(printf '%s\n' "${PUBLIC_PORTS[@]}" | sort -un | tr '\n' ' ')
+  cat <<NOTE
+
+  These addresses get a free Let's Encrypt certificate, which checks the
+  name by connecting to its port 80. If this server is behind a router
+  (e.g. an office DDNS name), forward these TCP ports on the router to
+  ${LAN_IP:-this server}:
+
+    $PORTS
+
+  (If port 80 can't be forwarded, forward 443 instead.) The first visit
+  can take a minute while the certificate is issued. If it doesn't load:
+
+    sudo journalctl -u caddy --no-pager -n 50 | grep -iE 'obtain|challenge|error'
+NOTE
+fi
 cat <<NEXT
 
-  Then close the plain-HTTP port to everything but this server -- in
-  Central Command's .env set CC_HTTP_BIND=127.0.0.1 and run
-  'docker compose up -d'. The upgrade agent uses 127.0.0.1 and keeps
+  Once HTTPS works, close the plain-HTTP ports: remove any router
+  forwards for the apps' old http:// ports, and set CC_HTTP_BIND=127.0.0.1
+  in Central Command's .env (HTTP_BIND=127.0.0.1 in the ERP's), then
+  'docker compose up -d'. The upgrade agents use 127.0.0.1 and keep
   working.
 NEXT

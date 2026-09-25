@@ -263,9 +263,12 @@ Put Caddy in front, once, with sudo -- it installs Caddy, writes the
 config, and gets or makes the certificate:
 
 ```bash
-# A domain name pointed at this server (ports 80 + 443 open to the internet):
-# free Let's Encrypt certificate, renewed automatically.
+# A domain name pointed at this server: free Let's Encrypt certificate,
+# renewed automatically -- no installing anything on the devices.
 sudo ./scripts/setup-https.sh cc.example.com=8082 erp.example.com=8083
+
+# An office router's DDNS name (e.g. No-IP): same, on two ports of one name.
+sudo ./scripts/setup-https.sh office.ddns.net:8443=8082 office.ddns.net:8444=8083
 
 # Only the server's address (office network): Caddy's private certificate.
 sudo ./scripts/setup-https.sh 192.168.0.188:8443=8082 192.168.0.188:8444=8083
@@ -276,6 +279,15 @@ sudo ./scripts/setup-https.sh 192.168.0.188:8443=8082 192.168.0.188:8444=8083
 
 Each `ADDRESS=PORT` maps an HTTPS address to the local HTTP port the app
 already listens on (`CC_HTTP_PORT` here, `HTTP_PORT` in the ERP's `.env`).
+
+With a domain name, Let's Encrypt checks it by connecting to its port 80,
+so port 80 and the HTTPS ports must reach this server from the internet.
+Behind an office router, add port forwards (TCP) to this server's office
+address -- for the DDNS example: **80, 8443 and 8444**. If the provider
+blocks port 80, forward 443 instead. People then open
+`https://office.ddns.net:8443` (Central Command) and `:8444` (ERP) from
+anywhere. The server's own office address (`192.168.x.x`) only works
+inside the office.
 With the private certificate, each device trusts it once. The script
 also serves that certificate (the public part only, never its key) at
 `http://ADDRESS:8440` -- open it on each device and install it:
@@ -294,9 +306,10 @@ also serves that certificate (the public part only, never its key) at
 (Another port for the download: `CERT_PORT=8450 sudo -E ./scripts/setup-https.sh ...`.
 The file itself is `/var/lib/caddy/.local/share/caddy/pki/authorities/local/root.crt`.)
 
-Then close the plain-HTTP port to everything but this server: set
-`CC_HTTP_BIND=127.0.0.1` in `.env` and `docker compose up -d`. The
-upgrade agent calls `127.0.0.1`, so it keeps working. Re-run the script
+Once HTTPS works, close the plain-HTTP ports: remove any router forwards
+for the old `http://` ports (e.g. 8082 / 8083), set `CC_HTTP_BIND=127.0.0.1`
+in `.env` (and `HTTP_BIND=127.0.0.1` in the ERP's) and `docker compose up -d`.
+The upgrade agents call `127.0.0.1`, so they keep working. Re-run the script
 any time to change the sites; it only rewrites its own block in
 `/etc/caddy/Caddyfile`.
 
