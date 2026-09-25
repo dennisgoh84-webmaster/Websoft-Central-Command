@@ -77,3 +77,29 @@ button:focus-visible {
 ::selection {
   background: rgba(128, 0, 32, 0.18);
 }
+
+/* ── Phone screens (Dennis, 2026-09-25: CC on mobile Safari) ──────────
+   Matches lib/useIsMobile.ts. The pages are laid out with inline styles,
+   so these rules reach them by what the inline style says: side-by-side
+   grids stack into one column, flex rows wrap instead of pushing buttons
+   off the right edge, and wide tables scroll sideways inside their card. */
+@media (max-width: 760px) {
+  .cc-main [style*="grid-template-columns"]:not([style*="auto-fit"]) {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+  .cc-main [style*="display: flex"] {
+    flex-wrap: wrap;
+  }
+  .cc-main table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .cc-main input,
+  .cc-main select,
+  .cc-main textarea {
+    max-width: 100%;
+    font-size: 16px; /* below 16px iOS Safari zooms the page on focus */
+  }
+}

@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
 import { color, font, radius } from '../lib/theme'
 import type { ReactNode } from 'react'
+import { useIsMobile } from '../lib/useIsMobile'
 import logo from '../assets/logo-white.png'
 
 const NAV = [
@@ -19,6 +21,11 @@ const NAV = [
 export default function Layout({ children }: { children: ReactNode }) {
   const { user, logout } = useAuth()
   const loc = useLocation()
+  // On a phone the sidebar is a slide-in drawer behind a Menu button
+  // (Dennis, 2026-09-25: on mobile Safari it took over half the screen).
+  const mobile = useIsMobile()
+  const [menuOpen, setMenuOpen] = useState(false)
+  useEffect(() => setMenuOpen(false), [loc.pathname, mobile])
 
   const initials = (user?.full_name || '?')
     .split(' ')
@@ -29,6 +36,34 @@ export default function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', fontFamily: font.sans }}>
+      {mobile && (
+        <header
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, height: 52, zIndex: 150,
+            display: 'flex', alignItems: 'center', gap: 12, padding: '0 12px',
+            background: color.sidebarBg, color: '#fff',
+          }}
+        >
+          <button
+            type="button"
+            className="btn"
+            aria-label="Menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen(!menuOpen)}
+            style={{
+              background: 'transparent', color: '#fff', border: `1px solid ${color.sidebarBorder}`,
+              borderRadius: radius.sm, padding: '7px 12px', fontSize: 15, fontFamily: font.sans, cursor: 'pointer',
+            }}
+          >
+            ☰ Menu
+          </button>
+          <img src={logo} alt="WebMaster Consultancy" style={{ height: 26, display: 'block' }} />
+        </header>
+      )}
+      {mobile && menuOpen && (
+        <div onClick={() => setMenuOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,17,21,.45)', zIndex: 190 }} />
+      )}
+
       {/* Sidebar */}
       <nav
         style={{
@@ -39,6 +74,13 @@ export default function Layout({ children }: { children: ReactNode }) {
           flexShrink: 0,
           display: 'flex',
           flexDirection: 'column',
+          ...(mobile
+            ? {
+                position: 'fixed', top: 0, bottom: 0, left: 0, zIndex: 200, overflowY: 'auto',
+                transform: menuOpen ? 'none' : 'translateX(-100%)', transition: 'transform .2s ease',
+                boxShadow: menuOpen ? '0 0 24px rgba(0,0,0,.35)' : 'none',
+              }
+            : {}),
         }}
       >
         <div style={{ padding: '0 20px 18px', borderBottom: `1px solid ${color.sidebarBorder}` }}>
@@ -122,7 +164,13 @@ export default function Layout({ children }: { children: ReactNode }) {
       </nav>
 
       {/* Main content */}
-      <main style={{ flex: 1, padding: '28px 36px', background: color.page, overflow: 'auto' }}>
+      <main
+        className="cc-main"
+        style={{
+          flex: 1, minWidth: 0, background: color.page, overflow: 'auto',
+          padding: mobile ? '68px 14px 24px' : '28px 36px',
+        }}
+      >
         {children}
       </main>
     </div>
