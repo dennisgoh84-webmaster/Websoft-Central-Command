@@ -293,7 +293,7 @@ class AuthController extends Controller
 
             return null;
         } catch (\Throwable $e) {
-            return 'the mail server said: '.mb_substr($e->getMessage(), 0, 200);
+            return CcMailer::explain($e, $box);
         }
     }
 

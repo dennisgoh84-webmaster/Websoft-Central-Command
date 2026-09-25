@@ -173,7 +173,7 @@ class SystemMailController extends Controller
                 "Hello {$admin->full_name},\n\nThis test email was sent through the \"{$setting->label}\" mailbox ({$setting->host}:{$setting->port}). If you are reading it, the mailbox works.\n",
             );
         } catch (\Throwable $e) {
-            throw new ApiException(422, 'The test email could not be sent -- the mail server said: '.mb_substr($e->getMessage(), 0, 300));
+            throw new ApiException(422, 'The test email could not be sent. '.CcMailer::explain($e, $setting));
         }
 
         return $admin->email;

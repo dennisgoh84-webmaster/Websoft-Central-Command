@@ -133,7 +133,7 @@ class SignInEmailTest extends TestCase
         // A broken mailbox is refused, and nothing changes.
         $this->mail->failWith = 'Connection refused';
         $this->postJson("/api/system-mail/{$first->id}/use-for-central-command", ['enabled' => true], $this->as($super))
-            ->assertStatus(422)->assertJsonFragment(['detail' => 'The test email could not be sent -- the mail server said: Connection refused']);
+            ->assertStatus(422)->assertJsonFragment(['detail' => 'The test email could not be sent. the mail server said: Connection refused']);
         $this->assertFalse($first->fresh()->used_by_central_command);
         $this->assertTrue($second->fresh()->used_by_central_command);
 
