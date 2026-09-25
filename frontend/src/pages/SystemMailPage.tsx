@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
 import { api, type ClientSummary, type MailPurpose, type PushResult, type SystemMailSetting } from '../lib/api'
 import { formatDateTime } from '../lib/format'
 import { alert, badge, button, card, color, dismissButton, font, h1, input, label as fieldLabel, pageHeader, table, td, th, type Tone } from '../lib/theme'
@@ -35,6 +36,10 @@ export default function SystemMailPage() {
 
   const clientName = (id: string) => clients.find((c) => c.id === id)?.name ?? id.slice(0, 8)
   const clientsMissingAppKey = (ids: string[]) => ids.filter((id) => !clients.find((c) => c.id === id)?.app_key_set)
+  // Clients some mailbox targets that have no APP_KEY yet (empty until the client list loads).
+  const missingKeyClients = clients.filter(
+    (c) => !c.app_key_set && settings.some((s) => s.assignments.some((a) => a.client_id === c.id)),
+  )
 
   function onClickNew() {
     setEditingId(null)
@@ -162,16 +167,20 @@ export default function SystemMailPage() {
         company's own document-email mailbox, which stays client-side.
       </p>
 
-      <div style={{ background: color.warningSoft, border: `1px solid ${color.warning}22`, borderRadius: 8, padding: '10px 14px', marginBottom: 20, maxWidth: 680 }}>
-        <p style={{ margin: 0, fontSize: 12, color: color.text, lineHeight: 1.6 }}>
-          <strong style={{ color: color.warning }}>⚠️ Requires that client's APP_KEY.</strong> The password
-          column on the client side is encrypted with <em>that install's own</em> Laravel key, so Central
-          Command needs it on file to write a password the client can actually decrypt — set it under
-          that client's Details tab (Connection Details). A client without one still receives every other
-          field; only the password is skipped for it, silently on the client side, but reported per-client
-          in the push results here.
-        </p>
-      </div>
+      {/* Only when a targeted client really lacks its APP_KEY -- the password
+          (and only the password) can't be pushed to it until one is on file. */}
+      {missingKeyClients.length > 0 && (
+        <div style={{ background: color.warningSoft, border: `1px solid ${color.warning}22`, borderRadius: 8, padding: '10px 14px', marginBottom: 20, maxWidth: 680 }}>
+          <p style={{ margin: 0, fontSize: 12, color: color.text, lineHeight: 1.6 }}>
+            <strong style={{ color: color.warning }}>⚠️ No APP_KEY on file for {missingKeyClients.map((c, i) => (
+              <span key={c.id}>{i > 0 && ', '}<Link to={`/clients/${c.id}`} style={{ color: color.warning }}>{c.name}</Link></span>
+            ))}.</strong>{' '}
+            Mailbox passwords can't be pushed to {missingKeyClients.length === 1 ? 'it' : 'them'} (every other
+            field still goes) — that install encrypts the password with its own key. Paste the key from the
+            client's <code style={{ fontFamily: font.mono }}>.env</code> under Clients &gt; Details &gt; Connection Details.
+          </p>
+        </div>
+      )}
 
       {/* Central Command's OWN email (2026-09-25) */}
       <div style={{ ...alert(ccMailbox ? 'success' : 'warning'), display: 'block', maxWidth: 680, marginBottom: 18 }}>
