@@ -36,16 +36,22 @@ export function shortSha(sha: string | null | undefined): string {
 
 /**
  * The version wording a client ERP prints on its login screen
- * (2026-09-26): the commit's first 7 characters and its date in
- * Singapore time -- "Version 5809d02 · 27/09/2026". Worked out the same
- * way as the ERP's deploy/version.sh, so the two tally whatever
- * timezone this browser is in.
+ * (2026-09-26): its version number and the release's date in Singapore
+ * time -- "Version 1.0.291 · 27/09/2026" -- as the client's upgrade
+ * agent reports them (the ERP's deploy/version.sh works both out), so
+ * the two tally whatever timezone this browser is in. An agent from
+ * before version numbers reports only the commit, shown by its first
+ * 7 characters until that client is upgraded.
  */
-export function versionLabel(sha: string | null | undefined, committedAt: string | null | undefined): string {
-  if (!sha) return '—'
+export function versionLabel(
+  version: string | null | undefined,
+  sha: string | null | undefined,
+  committedAt: string | null | undefined,
+): string {
+  if (!version && !sha) return '—'
   const d = committedAt ? new Date(committedAt) : null
   const date = d && !isNaN(d.getTime())
     ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d)
     : ''
-  return `Version ${shortSha(sha)}${date ? ` · ${date}` : ''}`
+  return `Version ${version || shortSha(sha)}${date ? ` · ${date}` : ''}`
 }

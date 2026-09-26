@@ -228,7 +228,7 @@ expected workflow for every screen. Minimum pass:
 - [ ] Client Modules tab lists modules; Enable then Disable one, row updates
 - [ ] Client Licenses: set a limit, Push to Client, verify `license_settings` on the client DB
 - [ ] Create an ad targeting the client, Push, tick appears on the chip, row in client `announcements`
-- [ ] Client Upgrades: each client's "Version abc1234 · DD/MM/YYYY" matches the version on that client's login screen
+- [ ] Client Upgrades: each client's "Version 1.0.N · DD/MM/YYYY" matches the version on that client's login screen
 - [ ] Staff: add a staff user, push a Support Login to the client, log in to the client ERP with it, Revoke
 - [ ] Dashboard shows every push above in Recent Push Activity
 

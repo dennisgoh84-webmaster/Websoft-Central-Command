@@ -235,7 +235,7 @@ Central Command calls the client's **migration head** — stored on
 `clients.last_known_migration_head`, checked before every write via
 `App\Services\ClientDbService::checkMigrationHead()`. (Which code a
 client runs is its upgrade agent's report, shown in Client Upgrades as
-"Version abc1234 · DD/MM/YYYY" -- the same wording as its login screen.)
+"Version 1.0.291 · DD/MM/YYYY" (`upgrade_agent_state.current_version`) -- the same wording as its login screen.)
 
 `checkMigrationHead()` also optionally refuses a client whose head is
 behind `centralcommand.min_client_migration_head`

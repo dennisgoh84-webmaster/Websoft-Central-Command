@@ -120,10 +120,11 @@ Concurrent login limit:
 
 `/version-management` · `/api/version-management/clients`
 
-Each client shows **Version abc1234 · DD/MM/YYYY** -- the first 7
-characters of the commit it runs and that commit's date (Singapore
-time), the same wording the client ERP prints on its login screen, so
-the two can be tallied. **Upgrade to latest** / **Roll back** queue a
+Each client shows **Version 1.0.291 · DD/MM/YYYY** -- its version
+number and that release's date (Singapore time), as its upgrade agent
+reports them, in the same wording the client ERP prints on its login
+screen, so the two can be tallied. (A client whose agent predates
+version numbers shows its commit's first 7 characters until upgraded.) **Upgrade to latest** / **Roll back** queue a
 request that the upgrade agent on the client's server carries out.
 
 ## Staff and Support Logins

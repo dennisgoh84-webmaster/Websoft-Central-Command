@@ -17,7 +17,8 @@ merge). Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Changed (26/09/2026)
 - **Client Upgrades** shows each client's version as
-  "Version abc1234 · DD/MM/YYYY" (Singapore time) -- the same wording
+  "Version 1.0.291 · DD/MM/YYYY" (Singapore time) -- the ERP's automatic
+  version number, as its upgrade agent reports it, in the same wording
   the client ERP prints on its login screen, so the two can be tallied.
 
 ### Added

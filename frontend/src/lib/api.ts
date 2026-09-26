@@ -177,9 +177,12 @@ export interface UpgradeAgentState {
   current_sha: string | null
   current_subject: string | null
   current_committed_at: string | null
+  /** e.g. "1.0.291" -- from ERP agents since 26/09/2026; absent before. */
+  current_version?: string | null
   remote_sha: string | null
   remote_subject: string | null
   remote_committed_at: string | null
+  remote_version?: string | null
   commits_behind: number
   agent_host: string | null
   last_heartbeat_at: string | null

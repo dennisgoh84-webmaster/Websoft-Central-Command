@@ -126,7 +126,7 @@ function ProbeBadges({ probe, neverConnected }: { probe: Probe | undefined; neve
       {s.supported && !s.agent_online && <span style={badge('danger')}>Agent offline</span>}
       {/* Same wording as that client's login screen, so the two tally. */}
       {s.agent?.current_sha && (
-        <span style={{ color: color.textMuted, width: '100%' }}>{versionLabel(s.agent.current_sha, s.agent.current_committed_at)}</span>
+        <span style={{ color: color.textMuted, width: '100%' }}>{versionLabel(s.agent.current_version, s.agent.current_sha, s.agent.current_committed_at)}</span>
       )}
     </>
   )

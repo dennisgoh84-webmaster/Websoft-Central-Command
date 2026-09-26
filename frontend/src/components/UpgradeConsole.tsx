@@ -123,12 +123,12 @@ export default function UpgradeConsole({ load, upgrade, rollback, cancel, canAct
         <div style={card({ padding: 18 })}>
           <h2 style={h2()}>Running now</h2>
           {/* Same wording as the ERP's login screen, so the two tally. */}
-          <p style={{ fontSize: 18, fontWeight: 600, margin: '8px 0 4px' }}>{versionLabel(agent?.current_sha, agent?.current_committed_at)}</p>
+          <p style={{ fontSize: 18, fontWeight: 600, margin: '8px 0 4px' }}>{versionLabel(agent?.current_version, agent?.current_sha, agent?.current_committed_at)}</p>
           <p style={{ margin: 0, fontSize: 13 }}>{agent?.current_subject ?? '—'}</p>
         </div>
         <div style={card({ padding: 18 })}>
           <h2 style={h2()}>Latest on main</h2>
-          <p style={{ fontSize: 18, fontWeight: 600, margin: '8px 0 4px' }}>{versionLabel(agent?.remote_sha, agent?.remote_committed_at)}</p>
+          <p style={{ fontSize: 18, fontWeight: 600, margin: '8px 0 4px' }}>{versionLabel(agent?.remote_version, agent?.remote_sha, agent?.remote_committed_at)}</p>
           <p style={{ margin: 0, fontSize: 13 }}>{agent?.remote_subject ?? '—'}</p>
           <p style={{ margin: '4px 0 0', fontSize: 12 }}>
             {agent?.remote_sha == null ? (
@@ -154,7 +154,7 @@ export default function UpgradeConsole({ load, upgrade, rollback, cancel, canAct
         ) : (
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
-              onClick={() => act(upgrade, `Upgrade ${subject} to ${versionLabel(agent?.remote_sha, agent?.remote_committed_at)} (the latest on main)?\n\nThe database is backed up first and only migrated forward -- never restored.`)}
+              onClick={() => act(upgrade, `Upgrade ${subject} to ${versionLabel(agent?.remote_version, agent?.remote_sha, agent?.remote_committed_at)} (the latest on main)?\n\nThe database is backed up first and only migrated forward -- never restored.`)}
               disabled={busy || !canAct || !status.can_upgrade}
               className="btn"
               style={button('primary')}
