@@ -28,3 +28,24 @@ export function formatDateTime(value: string | null | undefined): string {
   if (isNaN(d.getTime())) return '—'
   return `${formatDate(value)}, ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
+
+/** First 7 characters of a commit -- the length both sides show. */
+export function shortSha(sha: string | null | undefined): string {
+  return sha ? sha.slice(0, 7) : '—'
+}
+
+/**
+ * The version wording a client ERP prints on its login screen
+ * (2026-09-26): the commit's first 7 characters and its date in
+ * Singapore time -- "Version 5809d02 · 27/09/2026". Worked out the same
+ * way as the ERP's deploy/version.sh, so the two tally whatever
+ * timezone this browser is in.
+ */
+export function versionLabel(sha: string | null | undefined, committedAt: string | null | undefined): string {
+  if (!sha) return '—'
+  const d = committedAt ? new Date(committedAt) : null
+  const date = d && !isNaN(d.getTime())
+    ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Singapore', day: '2-digit', month: '2-digit', year: 'numeric' }).format(d)
+    : ''
+  return `Version ${shortSha(sha)}${date ? ` · ${date}` : ''}`
+}

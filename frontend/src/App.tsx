@@ -7,7 +7,6 @@ import ClientsPage from './pages/ClientsPage'
 import ClientDetailPage from './pages/ClientDetailPage'
 import AdvertisementsPage from './pages/AdvertisementsPage'
 import ConfigUpdatesPage from './pages/ConfigUpdatesPage'
-import VersionControlPage from './pages/VersionControlPage'
 import VersionManagementPage from './pages/VersionManagementPage'
 import StaffPage from './pages/StaffPage'
 import SystemMailPage from './pages/SystemMailPage'
@@ -35,7 +34,6 @@ export default function App() {
         <Route path="/clients/:id" element={<ClientDetailPage />} />
         <Route path="/advertisements" element={<AdvertisementsPage />} />
         <Route path="/config-updates" element={<ConfigUpdatesPage />} />
-        <Route path="/versions" element={<VersionControlPage />} />
         <Route path="/version-management" element={<VersionManagementPage />} />
         <Route path="/cc-upgrade" element={<CcUpgradePage />} />
         <Route path="/system-mail" element={<SystemMailPage />} />

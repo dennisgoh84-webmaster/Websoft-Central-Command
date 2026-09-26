@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { UpgradeRequest, UpgradeStatus } from '../lib/api'
-import { formatDateTime } from '../lib/format'
+import { formatDateTime, shortSha as short, versionLabel } from '../lib/format'
 import { alert, badge, button, card, color, dismissButton, font, h2, table, td, th, type Tone } from '../lib/theme'
 
 // The one upgrade screen, used for Central Command itself and for each
@@ -16,8 +16,6 @@ interface Props {
   canAct: boolean
   subject: string
 }
-
-const short = (sha: string | null | undefined) => (sha ? sha.slice(0, 10) : '—')
 
 // upgrade.sh prints its steps as bold "==> Step" lines; drop the colour codes.
 const cleanLog = (log: string | null | undefined) => (log ?? '').replace(/\x1b\[[0-9;]*m/g, '')
@@ -124,15 +122,13 @@ export default function UpgradeConsole({ load, upgrade, rollback, cancel, canAct
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
         <div style={card({ padding: 18 })}>
           <h2 style={h2()}>Running now</h2>
-          <p style={{ fontFamily: font.mono, fontSize: 18, fontWeight: 600, margin: '8px 0 4px' }}>{short(agent?.current_sha)}</p>
+          {/* Same wording as the ERP's login screen, so the two tally. */}
+          <p style={{ fontSize: 18, fontWeight: 600, margin: '8px 0 4px' }}>{versionLabel(agent?.current_sha, agent?.current_committed_at)}</p>
           <p style={{ margin: 0, fontSize: 13 }}>{agent?.current_subject ?? '—'}</p>
-          <p style={{ margin: '4px 0 0', fontSize: 12, color: color.textMuted }}>
-            {agent?.current_committed_at ? `committed ${formatDateTime(agent.current_committed_at)}` : ''}
-          </p>
         </div>
         <div style={card({ padding: 18 })}>
           <h2 style={h2()}>Latest on main</h2>
-          <p style={{ fontFamily: font.mono, fontSize: 18, fontWeight: 600, margin: '8px 0 4px' }}>{short(agent?.remote_sha)}</p>
+          <p style={{ fontSize: 18, fontWeight: 600, margin: '8px 0 4px' }}>{versionLabel(agent?.remote_sha, agent?.remote_committed_at)}</p>
           <p style={{ margin: 0, fontSize: 13 }}>{agent?.remote_subject ?? '—'}</p>
           <p style={{ margin: '4px 0 0', fontSize: 12 }}>
             {agent?.remote_sha == null ? (
@@ -158,7 +154,7 @@ export default function UpgradeConsole({ load, upgrade, rollback, cancel, canAct
         ) : (
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button
-              onClick={() => act(upgrade, `Upgrade ${subject} to the latest commit on main (${short(agent?.remote_sha)})?\n\nThe database is backed up first and only migrated forward -- never restored.`)}
+              onClick={() => act(upgrade, `Upgrade ${subject} to ${versionLabel(agent?.remote_sha, agent?.remote_committed_at)} (the latest on main)?\n\nThe database is backed up first and only migrated forward -- never restored.`)}
               disabled={busy || !canAct || !status.can_upgrade}
               className="btn"
               style={button('primary')}

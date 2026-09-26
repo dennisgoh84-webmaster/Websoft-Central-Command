@@ -10,7 +10,6 @@ use App\Http\Controllers\HealthController;
 use App\Http\Controllers\LicenseController;
 use App\Http\Controllers\StaffController;
 use App\Http\Controllers\SystemMailController;
-use App\Http\Controllers\VersionController;
 use App\Http\Controllers\VersionManagementController;
 use Illuminate\Support\Facades\Route;
 
@@ -87,17 +86,6 @@ Route::middleware('cc.auth')->group(function () {
         Route::patch('/{updateId}', [ConfigUpdateController::class, 'update']);
         Route::post('/{updateId}/push', [ConfigUpdateController::class, 'push']);
         Route::post('/{updateId}/push/{clientId}', [ConfigUpdateController::class, 'pushToClient']);
-    });
-
-    // ── Version Control ──────────────────────────────────────────────
-    Route::prefix('versions')->group(function () {
-        Route::get('/', [VersionController::class, 'index']);
-        Route::post('/', [VersionController::class, 'store']);
-        Route::get('/clients', [VersionController::class, 'clientVersions']);
-        Route::post('/clients/{clientId}/upgrade', [VersionController::class, 'upgradeClient']);
-        Route::get('/upgrade-logs', [VersionController::class, 'upgradeLogs']);
-        Route::patch('/{versionId}', [VersionController::class, 'update']);
-        Route::delete('/{versionId}', [VersionController::class, 'destroy']);
     });
 
     // ── Version Management (Upgrade/Rollback) ────────────────────────

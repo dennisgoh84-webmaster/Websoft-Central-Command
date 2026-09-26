@@ -230,7 +230,7 @@ expected workflow for every screen. Minimum pass:
 - [ ] Client Licenses: set a limit, Push to Client, verify `license_settings` on the client DB
 - [ ] Create an ad targeting the client, Push, tick appears on the chip, row in client `announcements`
 - [ ] Config Update: draft → Mark Ready → Push to All → status `pushed`, push history row
-- [ ] Version Control: register and release a version, client shows Up to date or Update available
+- [ ] Client Upgrades: each client's "Version abc1234 · DD/MM/YYYY" matches the version on that client's login screen
 - [ ] Staff: add a staff user, push a Support Login to the client, log in to the client ERP with it, Revoke
 - [ ] Dashboard shows every push above in Recent Push Activity
 

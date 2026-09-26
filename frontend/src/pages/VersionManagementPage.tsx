@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { api, type ClientUpgradeListItem, type UpgradeStatus } from '../lib/api'
 import { useAuth } from '../lib/AuthContext'
-import { formatDateTime } from '../lib/format'
+import { versionLabel } from '../lib/format'
 import { badge, card, color, font, h1, pageHeader } from '../lib/theme'
 import UpgradeConsole from '../components/UpgradeConsole'
-
-const short = (sha: string | null | undefined) => (sha ? sha.slice(0, 10) : '—')
 
 // Per-client status, fetched in parallel after the (instant) registry
 // list, since each one is a live connection to that client's database
@@ -126,9 +124,9 @@ function ProbeBadges({ probe, neverConnected }: { probe: Probe | undefined; neve
         : behind > 0 ? <span style={badge('warning')}>{behind} behind</span>
         : <span style={badge('success')}>Up to date</span>}
       {s.supported && !s.agent_online && <span style={badge('danger')}>Agent offline</span>}
-      {s.agent?.current_sha && <span style={{ fontFamily: font.mono, color: color.textMuted }}>{short(s.agent.current_sha)}</span>}
-      {s.agent?.current_committed_at && (
-        <span style={{ color: color.textFaint, width: '100%' }}>code from {formatDateTime(s.agent.current_committed_at)}</span>
+      {/* Same wording as that client's login screen, so the two tally. */}
+      {s.agent?.current_sha && (
+        <span style={{ color: color.textMuted, width: '100%' }}>{versionLabel(s.agent.current_sha, s.agent.current_committed_at)}</span>
       )}
     </>
   )

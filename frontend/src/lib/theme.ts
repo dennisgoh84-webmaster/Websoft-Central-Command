@@ -215,7 +215,7 @@ export function table(): CSSProperties {
 
 // ── Tabs ────────────────────────────────────────────────────────────
 
-/** Pill-style tab button (Staff / Version Control / Advertisements sub-tabs). */
+/** Pill-style tab button (Staff / Advertisements sub-tabs). */
 export function tabPill(active: boolean): CSSProperties {
   return {
     padding: '7px 16px',
