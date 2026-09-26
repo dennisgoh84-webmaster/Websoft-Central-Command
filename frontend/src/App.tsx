@@ -6,7 +6,6 @@ import DashboardPage from './pages/DashboardPage'
 import ClientsPage from './pages/ClientsPage'
 import ClientDetailPage from './pages/ClientDetailPage'
 import AdvertisementsPage from './pages/AdvertisementsPage'
-import ConfigUpdatesPage from './pages/ConfigUpdatesPage'
 import VersionManagementPage from './pages/VersionManagementPage'
 import StaffPage from './pages/StaffPage'
 import SystemMailPage from './pages/SystemMailPage'
@@ -33,7 +32,6 @@ export default function App() {
         <Route path="/clients" element={<ClientsPage />} />
         <Route path="/clients/:id" element={<ClientDetailPage />} />
         <Route path="/advertisements" element={<AdvertisementsPage />} />
-        <Route path="/config-updates" element={<ConfigUpdatesPage />} />
         <Route path="/version-management" element={<VersionManagementPage />} />
         <Route path="/cc-upgrade" element={<CcUpgradePage />} />
         <Route path="/system-mail" element={<SystemMailPage />} />

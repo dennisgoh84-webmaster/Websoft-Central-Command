@@ -9,8 +9,6 @@ const STAT_CARDS: { key: keyof DashboardStats; label: string; color: string }[] 
   { key: 'active_clients', label: 'Active', color: color.successSolid },
   { key: 'suspended_clients', label: 'Suspended', color: color.dangerSolid },
   { key: 'active_ads', label: 'Active Ads', color: color.infoSolid },
-  { key: 'total_config_updates', label: 'Config Updates', color: color.purpleSolid },
-  { key: 'pending_pushes', label: 'Pending Pushes', color: color.warningSolid },
 ]
 
 const PUSH_TYPE_TONE: Record<string, Tone> = {

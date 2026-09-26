@@ -205,8 +205,7 @@ For each client on a different machine:
    `ad_banner_settings`, `company_modules`, `license_settings`,
    `system_mail_settings`, `users`, `user_company_access`,
    `upgrade_requests`, `upgrade_agent_state`
-   (`docs/central-command-schema-contract.md`) -- plus whatever the SQL
-   in your Config Updates touches.
+   (`docs/central-command-schema-contract.md`).
 3. In Central Command: Clients › **+ Add Client**, enter host, port,
    database, username, password. Tick **Use TLS** only if that Postgres
    has a certificate configured (`ssl = on`); the ERP's stock Postgres
@@ -229,7 +228,6 @@ expected workflow for every screen. Minimum pass:
 - [ ] Client Modules tab lists modules; Enable then Disable one, row updates
 - [ ] Client Licenses: set a limit, Push to Client, verify `license_settings` on the client DB
 - [ ] Create an ad targeting the client, Push, tick appears on the chip, row in client `announcements`
-- [ ] Config Update: draft → Mark Ready → Push to All → status `pushed`, push history row
 - [ ] Client Upgrades: each client's "Version abc1234 · DD/MM/YYYY" matches the version on that client's login screen
 - [ ] Staff: add a staff user, push a Support Login to the client, log in to the client ERP with it, Revoke
 - [ ] Dashboard shows every push above in Recent Push Activity
@@ -431,7 +429,6 @@ docker compose exec cc-db psql -U cc_app central_command
 | Sign-in codes | Until a mailbox is set for Central Command, sign-in codes are shown on screen (password still needed) and password reset by email is off | Set one: see **Central Command's own email** below |
 | TLS to the browser | Plain HTTP on `CC_HTTP_PORT` | `sudo ./scripts/setup-https.sh ...` then `CC_HTTP_BIND=127.0.0.1` (see **HTTPS**) |
 | Admin password | `Admin123` seeded | Change on first login; consider removing the default from `CentralCommandInstall` |
-| Config Updates | Raw SQL runs on every active client with no dry run | Add review/approval, per-client preview |
 | Upgrades | CC Upgrade / Client Upgrades run the real upgrade scripts through each host's agent, with backup first | Same; the database is never restored automatically |
 | Database port | Bound to `127.0.0.1` only | Keep it that way |
 | CORS | Not needed: nginx makes the API same-origin | Same; `cors_allowed_origins` in `backend/config/centralcommand.php` only matters for the Vite dev server |

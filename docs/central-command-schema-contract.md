@@ -233,8 +233,9 @@ That row's `migration` value (the latest applied migration filename,
 e.g. `2026_09_30_000100_create_system_mail_settings_table`) is what
 Central Command calls the client's **migration head** — stored on
 `clients.last_known_migration_head`, checked before every write via
-`App\Services\ClientDbService::checkMigrationHead()`, and compared
-against registered ERP versions on the Version Control page.
+`App\Services\ClientDbService::checkMigrationHead()`. (Which code a
+client runs is its upgrade agent's report, shown in Client Upgrades as
+"Version abc1234 · DD/MM/YYYY" -- the same wording as its login screen.)
 
 `checkMigrationHead()` also optionally refuses a client whose head is
 behind `centralcommand.min_client_migration_head`
@@ -264,7 +265,12 @@ Current head: the last file in `backend-php/database/migrations/`.
    only.  Don't log in the client's Event Logs.
 6. **Scope beyond ads and licenses** → DECIDED: Yes, config updates
    too.  Push SQL-based configuration changes (tax rate updates, new
-   default settings) to client databases.
+   default settings) to client databases.  **REVERSED 26/09/2026**
+   (Dennis): Config Updates removed from Central Command -- raw SQL run
+   on every client's live database, with no preview or undo, was too
+   risky. Changes to a client's database ship through upgrades
+   (migrations) instead. The `config_updates` / `config_push_logs`
+   tables are left in Central Command's own database, unused.
 
 ---
 

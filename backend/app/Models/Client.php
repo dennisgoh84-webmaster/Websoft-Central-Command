@@ -8,7 +8,7 @@ use App\Casts\UppercaseDbEnum;
  * Client registry — one row per deployed ERP instance.
  *
  * Central Command connects to each client's PostgreSQL to push ads,
- * manage licenses, and push config updates. Connection credentials are
+ * manage licenses, and request upgrades. Connection credentials are
  * stored here (encrypted at rest in production via env-level encryption
  * or a secrets manager — not in Central Command's app layer).
  *

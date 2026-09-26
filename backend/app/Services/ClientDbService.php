@@ -288,29 +288,6 @@ class ClientDbService
         }
     }
 
-    /** Execute a config update SQL statement on a client DB. */
-    public function pushConfigSql(Client $client, string $sqlStatement, ?string $adminId = null): array
-    {
-        try {
-            $pdo = $this->connect($client);
-            $this->checkMigrationHead($pdo);
-
-            $stmt = $pdo->prepare($sqlStatement);
-            $stmt->execute();
-            $rowCount = $stmt->rowCount();
-
-            $client->last_connected_at = Carbon::now();
-            $client->save();
-
-            $this->logPush($client, 'config', "Config SQL executed, {$rowCount} row(s) affected", true, pushedBy: $adminId);
-
-            return ['success' => true, 'rows_affected' => $rowCount];
-        } catch (Throwable $e) {
-            $this->logPush($client, 'config', 'Push failed', false, $e->getMessage(), $adminId);
-            throw new ClientDbException($e->getMessage(), 0, $e);
-        }
-    }
-
     /**
      * Push the concurrent-login license limit to a client DB.
      *

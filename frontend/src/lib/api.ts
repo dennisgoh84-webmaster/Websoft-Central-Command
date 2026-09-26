@@ -131,23 +131,6 @@ export interface ClientModule {
   company_name: string
 }
 
-export interface ConfigUpdate {
-  id: string
-  title: string
-  description: string | null
-  sql_statement: string
-  status: string
-  created_at: string
-  updated_at: string
-  push_logs: {
-    id: string
-    client_id: string
-    success: boolean
-    error_message: string | null
-    pushed_at: string
-  }[]
-}
-
 export interface PushLogEntry {
   id: string
   client_id: string
@@ -165,8 +148,6 @@ export interface DashboardStats {
   suspended_clients: number
   total_ads: number
   active_ads: number
-  total_config_updates: number
-  pending_pushes: number
   recent_pushes: PushLogEntry[]
 }
 
@@ -362,17 +343,7 @@ export const api = {
       method: 'POST',
     }),
 
-  // Config Updates
-  listConfigUpdates: () => request<ConfigUpdate[]>('/config-updates/'),
-  getConfigUpdate: (id: string) => request<ConfigUpdate>(`/config-updates/${id}`),
-  createConfigUpdate: (data: { title: string; description?: string; sql_statement: string }) =>
-    request<ConfigUpdate>('/config-updates/', { method: 'POST', body: JSON.stringify(data) }),
-  updateConfigUpdate: (id: string, data: Partial<ConfigUpdate>) =>
-    request<ConfigUpdate>(`/config-updates/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
-  pushConfigUpdate: (id: string) =>
-    request<PushResult & { total: number; successes: number }>(`/config-updates/${id}/push`, { method: 'POST' }),
-  pushConfigToClient: (updateId: string, clientId: string) =>
-    request<{ success: boolean }>(`/config-updates/${updateId}/push/${clientId}`, { method: 'POST' }),
+
 
   // System Mail Settings
   listSystemMail: () => request<SystemMailSetting[]>('/system-mail/'),

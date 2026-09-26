@@ -12,7 +12,6 @@ manages all deployed Websoft Service ERP installations from one place.
 | **Advertisement Push** | Create announcements, assign to specific clients, push to their `announcements` table |
 | **Video Banner Push** | Set promo video URLs and push to client `ad_banner_settings` |
 | **License Management** | View and toggle module licenses (`company_modules`) on client databases |
-| **Config Updates** | Draft SQL-based configuration changes, push to all or selected clients |
 | **Push Logging** | Full audit trail of every push operation |
 
 ## Architecture
@@ -43,7 +42,7 @@ Central Command has its **own** PostgreSQL database for:
 - Admin users
 - Client registry (connection details)
 - Advertisement templates + assignments
-- Config update drafts + push logs
+- Push logs
 
 It connects to each client's PostgreSQL **on demand** to read/write
 the tables defined in the
@@ -138,10 +137,6 @@ client's schema is too old, the push is refused.
 | POST | `/api/advertisements/videos/{id}/push` | Push video to clients |
 | GET | `/api/licenses/{client_id}/modules` | Read client modules |
 | POST | `/api/licenses/{client_id}/companies/{company_id}/modules` | Toggle module |
-| GET/POST | `/api/config-updates/` | List / create config updates |
-| PATCH | `/api/config-updates/{id}` | Update config |
-| POST | `/api/config-updates/{id}/push` | Push to all active clients |
-| POST | `/api/config-updates/{id}/push/{client_id}` | Push to specific client |
 
 ## Settled Decisions
 
@@ -152,4 +147,5 @@ All 6 open questions from planned-work.md §8 were resolved:
 3. **Ad targeting** → Manual per-client assignment
 4. **Audit trail** → Central Command's own push logs only
 5. **Schema versioning** → Check `alembic_version` table
-6. **Future scope** → Yes, config updates (tax rates, settings) too
+6. **Future scope** → Config updates (raw SQL pushed to clients) were built, then
+   removed on 26/09/2026 -- too risky; client changes ship through upgrades

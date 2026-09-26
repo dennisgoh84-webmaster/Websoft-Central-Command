@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Advertisement;
 use App\Models\Client;
-use App\Models\ConfigUpdate;
 use App\Models\PushLog;
 
 /** Central Command dashboard — summary statistics. */
@@ -19,9 +18,6 @@ class DashboardController extends Controller
         $totalAds = Advertisement::count();
         $activeAds = Advertisement::where('is_active', true)->count();
 
-        $totalConfig = ConfigUpdate::count();
-        $pending = ConfigUpdate::where('status', 'READY')->count();
-
         $recentPushes = PushLog::orderByDesc('pushed_at')->limit(20)->get();
 
         return response()->json([
@@ -30,8 +26,6 @@ class DashboardController extends Controller
             'suspended_clients' => $suspendedClients,
             'total_ads' => $totalAds,
             'active_ads' => $activeAds,
-            'total_config_updates' => $totalConfig,
-            'pending_pushes' => $pending,
             'recent_pushes' => $recentPushes->map(fn (PushLog $p) => [
                 'id' => (string) $p->id,
                 'client_id' => (string) $p->client_id,

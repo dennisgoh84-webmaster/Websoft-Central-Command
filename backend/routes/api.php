@@ -3,7 +3,6 @@
 use App\Http\Controllers\AdvertisementController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\ClientController;
-use App\Http\Controllers\ConfigUpdateController;
 use App\Http\Controllers\CcUpgradeController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HealthController;
@@ -76,16 +75,6 @@ Route::middleware('cc.auth')->group(function () {
         Route::post('/{clientId}/companies/{companyId}/modules', [LicenseController::class, 'setCompanyModuleLicense']);
         Route::patch('/{clientId}/license-limit', [LicenseController::class, 'updateLicenseLimit']);
         Route::post('/{clientId}/license-limit/push', [LicenseController::class, 'pushLicenseLimit']);
-    });
-
-    // ── Config Updates ───────────────────────────────────────────────
-    Route::prefix('config-updates')->group(function () {
-        Route::get('/', [ConfigUpdateController::class, 'index']);
-        Route::post('/', [ConfigUpdateController::class, 'store']);
-        Route::get('/{updateId}', [ConfigUpdateController::class, 'show']);
-        Route::patch('/{updateId}', [ConfigUpdateController::class, 'update']);
-        Route::post('/{updateId}/push', [ConfigUpdateController::class, 'push']);
-        Route::post('/{updateId}/push/{clientId}', [ConfigUpdateController::class, 'pushToClient']);
     });
 
     // ── Version Management (Upgrade/Rollback) ────────────────────────

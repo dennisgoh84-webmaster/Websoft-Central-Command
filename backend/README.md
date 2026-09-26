@@ -12,7 +12,7 @@ covers backend-specific notes.
 
 | Path | What |
 |---|---|
-| `app/Http/Controllers` | One controller per resource (clients, advertisements, licenses, config updates, dashboard, staff, versions, auth) — mirrors `routes/api.php` |
+| `app/Http/Controllers` | One controller per resource (clients, advertisements, licenses, dashboard, staff, upgrades, system mail, auth) — mirrors `routes/api.php` |
 | `app/Models` | Eloquent models for Central Command's own database (client ERP databases are never modeled here — see below) |
 | `app/Services/ClientDbService.php` | Connects to a client ERP's PostgreSQL on demand (PDO) and runs push operations (ads, licenses, config SQL) |
 | `app/Services/AuthService.php` | Password hashing + JWT issue/verify for admin login |

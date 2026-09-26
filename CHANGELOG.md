@@ -6,6 +6,20 @@ merge). Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## Unreleased
 
+### Removed (26/09/2026)
+- **Config Updates** -- typed SQL run on every active client's live
+  database with no preview or undo. Too risky; changes to a client's
+  database ship through upgrades (migrations). The Dashboard's *Config
+  Updates* and *Pending Pushes* counters went with it.
+- **Version Control** -- its Upgrade button only wrote a log line and
+  changed the recorded version; real upgrades are Client Upgrades'.
+  Both features' tables are left in the database, unused.
+
+### Changed (26/09/2026)
+- **Client Upgrades** shows each client's version as
+  "Version abc1234 · DD/MM/YYYY" (Singapore time) -- the same wording
+  the client ERP prints on its login screen, so the two can be tallied.
+
 ### Added
 - **System Mail Settings push** (`planned-work.md #8c` in the client ERP
   repo). New "📧 System Mail" screen: create/edit a system mailbox

@@ -23,8 +23,7 @@ new Video Banner screen (previously API-only).
 | Dashboard | Counters and the last 20 push events | nothing | — |
 | Clients | ERP instance registry, connection test, modules, login limit | `company_modules`, `license_settings` | `license` |
 | Advertisements | Announcements + video banner, both assigned per client | `announcements`, `ad_banner_settings` | `advertisement`, `video` |
-| Config Updates | SQL drafted centrally, pushed to all active clients | whatever the SQL targets | `config` |
-| Version Control | Release registry keyed by Alembic head | nothing yet (records intent) | `version` |
+| Client Upgrades | Each client's version, upgrade / roll back through its upgrade agent | `upgrade_requests` | `version` |
 | Staff | CC admin accounts; support logins pushed into client ERPs | `users`, `user_company_access` | `support_login` |
 
 ---
@@ -52,9 +51,8 @@ account exists.
 
 ![Dashboard](screenshots/03-dashboard.png)
 
-Six counters and the twenty most recent push events. *Pending pushes*
-counts ad assignments never pushed. Suspended clients are excluded from
-every push-all.
+Four counters and the twenty most recent push events. Suspended
+clients are excluded from every push-all.
 
 ## Clients
 
@@ -65,7 +63,7 @@ every push-all.
 
 1. **+ Add Client**: code, DB host, port, database, credentials, TLS (`sslmode=require`). The password is stored in Central Command's DB and never displayed again.
 2. Open the client and **Test Connection** to confirm reachability and record the Alembic head.
-3. The client then appears as a target in Advertisements, Config Updates, Version Control and Support Logins.
+3. The client then appears as a target in Advertisements, Client Upgrades and Support Logins.
 
 ## Client detail: three tabs
 
@@ -118,38 +116,15 @@ Concurrent login limit:
 3. A green tick on the client chip means that push succeeded; the API returns each video's assignments (`client_id`, `pushed_at`) so the list reflects push state without a page reload.
 4. Each client push is logged as `video`.
 
-## Config Updates
+## Client Upgrades
 
-`/config-updates` · `PATCH status`, `POST /api/config-updates/{id}/push`
+`/version-management` · `/api/version-management/clients`
 
-Lifecycle: `draft` → **Mark Ready** → `ready` → **Push to All** →
-`pushed`, or `partial` if some clients failed (push stays available).
-
-![Config updates](screenshots/14-config-updates.png)
-![New config update](screenshots/15-config-new-form.png)
-
-1. Draft with title, description and a single SQL statement.
-2. **Mark Ready** unlocks the push button.
-3. **Push to All** runs the statement in a transaction on every active client after the Alembic check. Result line: "Pushed to n/m clients".
-4. Per-client outcomes appear under the card and in the global log as `config`.
-
-The SQL runs as written. There is no dry run. The per-client endpoint
-(`push/{client_id}`) exists for retries but has no button yet.
-
-## Version Control
-
-`/versions` · `/api/versions/`, `/api/versions/clients`, `/api/versions/upgrade-logs`
-
-![Client versions](screenshots/16-versions-clients.png)
-![Registry](screenshots/17-versions-registry.png)
-![History](screenshots/18-versions-history.png)
-
-1. **+ New Version**: version number, Alembic head, release notes. Starts as draft.
-2. **Release** stamps `released_at`; marking it latest clears the flag elsewhere.
-3. Client Versions shows *Update available* on any active client whose last-seen head is not the latest.
-4. **Upgrade** writes an upgrade log, sets the client's tracked head, and logs `version`.
-
-Upgrade records intent only. It does not run Alembic on the client.
+Each client shows **Version abc1234 · DD/MM/YYYY** -- the first 7
+characters of the commit it runs and that commit's date (Singapore
+time), the same wording the client ERP prints on its login screen, so
+the two can be tallied. **Upgrade to latest** / **Roll back** queue a
+request that the upgrade agent on the client's server carries out.
 
 ## Staff and Support Logins
 
@@ -176,7 +151,7 @@ Support login:
 1. **Clients** – register with DB host, credentials, TLS.
 2. **Client detail** – Test Connection records the Alembic head and companies.
 3. **Client detail** – enable purchased modules per company; set and push the login cap.
-4. **Version Control** – confirm the client shows Up to date.
+4. **Client Upgrades** – confirm the version shown matches the client's login screen.
 5. **Advertisements** – assign standing announcements (and a video banner, if any) and push.
 6. **Staff** – push a support engineer login for the onboarding team.
 7. **Dashboard** – every step appears in Recent Push Activity.
